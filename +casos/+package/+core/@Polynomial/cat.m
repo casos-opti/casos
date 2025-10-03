@@ -19,45 +19,39 @@ end
 a = varargin{1};
 b = varargin{2};
 
-switch (dim)
-    case 0
-        % block diagonal
-        ul = a.zeros(size(a,1),size(b,2));
-        rl = a.zeros(size(b,1),size(a,2));
+assert(is_operator(a) == is_operator(b), 'Must not mix polynomials and operators.')
 
-        % concatenate all blocks
-        c = blockcat(a,ul,rl,b);
+[tf,sz] = check_sz_concat(dim,a,b);
 
-    otherwise
-        [tf,sz] = check_sz_concat(dim,a,b);
+if (dim == 0)
+    % nothing to do
 
-        if (~tf)
-            % dimensions are consistent if size(a,~dim) == size(b,~dim)
-            throw(casos.package.core.IncompatibleSizesError.concat(a,b));
+elseif (~tf)
+    % dimensions are consistent if size(a,~dim) == size(b,~dim)
+    throw(casos.package.core.IncompatibleSizesError.concat(a,b));
 
-        elseif (isempty(a) && isempty(b))
-            % concatenation of empty polynomials
-            c = a.empty(sz);
-            return
+elseif (isempty(a) && isempty(b))
+    % concatenation of empty polynomials
+    c = a.empty(sz);
+    return
 
-        elseif isempty(a)
-            % concatenation of b with empty polynomial
-            c = b;
-            return
-        
-        elseif isempty(b)
-            % concatenation of a with empty polynomial
-            c = a;
-            return
-        end
+elseif isempty(a)
+    % concatenation of b with empty polynomial
+    c = b;
+    return
 
-        % generic concatenation
-        c = a.new_poly;
-
-        % concatenate coefficient matrices
-        [S,c.coeffs] = coeff_cat(a.get_sparsity,b.get_sparsity,a.coeffs,b.coeffs,dim);
-        % set sparsity
-        c = set_sparsity(c,S);
+elseif isempty(b)
+    % concatenation of a with empty polynomial
+    c = a;
+    return
 end
+
+% generic concatenation
+c = a.new_poly;
+
+% concatenate coefficient matrices
+[S,c.coeffs] = coeff_cat(a.get_sparsity,b.get_sparsity,a.coeffs,b.coeffs,dim);
+% set sparsity
+c = set_sparsity(c,S);
 
 end

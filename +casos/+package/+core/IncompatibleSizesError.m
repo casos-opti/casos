@@ -62,6 +62,11 @@ methods (Static)
                 ' and the size of the polynomial to be substituted into is [%s].'],a,b);
     end
 
+    function err = mdivide(a,b)
+        % New error for matrix division.
+        err = casos.package.core.IncompatibleSizesError('MATLAB:dimagree',a,b);
+    end
+
     function err = other(a,b)
         % New error for other operations.
         err = casos.package.core.IncompatibleSizesError('', ...

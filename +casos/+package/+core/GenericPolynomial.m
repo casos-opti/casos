@@ -17,6 +17,9 @@ properties (Dependent)
     nterm;
     maxdeg;
     mindeg;
+
+    sparsity_in;
+    sparsity_out;
 end
 
 methods (Abstract)
@@ -25,15 +28,10 @@ methods (Abstract)
 end
 
 methods
-    %% Getter
-    function n = get.nvars(obj)
-        % Number of indeterminate variables.
-        n = obj.poly_sparsity.nvars;
-    end
-
-    function n = get.nterm(obj)
-        % Number of monomials.
-        n = obj.poly_sparsity.nterm;
+    %% Getters (Dependent variables)
+    function d = get.maxdeg(obj)
+        % Maximum degree of polynomial.
+        d = obj.poly_sparsity.maxdeg;
     end
 
     function d = get.mindeg(obj)
@@ -41,9 +39,46 @@ methods
         d = obj.poly_sparsity.mindeg;
     end
 
-    function d = get.maxdeg(obj)
-        % Maximum degree of polynomial.
-        d = obj.poly_sparsity.maxdeg;
+    function n = get.nterm(obj)
+        % Number of monomials.
+        n = obj.poly_sparsity.nterm;
+    end
+
+    function n = get.nvars(obj)
+        % Number of indeterminate variables.
+        n = obj.poly_sparsity.nvars;
+    end
+
+    function S = get.sparsity_in(obj)
+        % Input sparsity pattern.
+        S = obj.poly_sparsity.sparsity_in;
+    end
+
+    function S = get.sparsity_out(obj)
+        % Output sparsity pattern.
+        S = obj.poly_sparsity.sparsity_out;
+    end
+
+    %% Getters
+    function varargout = grambasis(obj,varargin)
+        % Return a Gram basis for this polynomial.
+        [varargout{1:nargout}] = grambasis(obj.poly_sparsity,varargin{:});
+    end
+
+    function x = indeterminates(obj)
+        % Return indeterminate variables of polynomial.
+        x = indeterminates(obj.poly_sparsity);
+    end
+
+    function Z = monomials(obj,deg)
+        % Return monomial sparsity pattern.
+        if nargin > 1
+            % create pattern
+            Z = monomials@casos.package.core.AlgebraicObject(obj,deg);
+        else
+            % return pattern
+            Z = monomials(obj.poly_sparsity);
+        end
     end
 
     function n = nnz(obj)
@@ -61,44 +96,15 @@ methods
         [varargout{1:nargout}] = size(obj.poly_sparsity,varargin{:});
     end
 
-    function varargout = degrees(obj)
-        % Return degrees of polynomial.
-        [varargout{1:nargout}] = degrees(obj.poly_sparsity);
+    function S = sparsity(obj)
+        % Return (copy of) sparsity pattern.
+        S = casos.Sparsity(obj.poly_sparsity);
     end
 
-    function x = indeterminates(obj)
-        % Return indeterminate variables of polynomial.
-        x = indeterminates(obj.poly_sparsity);
-    end
-
-    function tf = isrow(obj)
-        % Check if polynomial is a row vector.
-        tf = isrow(obj.poly_sparsity);
-    end
-
-    function tf = iscolumn(obj)
-        % Check if polynomial is a column vector.
-        tf = iscolumn(obj.poly_sparsity);
-    end
-
-    function tf = isvector(obj)
-        % Check if polynomial is a vector.
-        tf = isvector(obj.poly_sparsity);
-    end
-
-    function tf = isscalar(obj)
-        % Check if polyonomial is a scalar.
-        tf = isscalar(obj.poly_sparsity);
-    end
-
-    function tf = is_zerodegree(obj)
-        % Check if polynomial is of degree zero.
-        tf = is_zerodegree(obj.poly_sparsity);
-    end
-
-    function tf = is_homogeneous(obj,varargin)
-        % Check if polynomial is homogeneous.
-        tf = is_homogeneous(obj.poly_sparsity,varargin{:});
+    %% Getters (Boolean)
+    function tf = isempty(obj)
+        % Check if polynomial is empty.
+        tf = isempty@casos.package.core.PolynomialInterface(obj);
     end
 
     function tf = is_constant_poly(obj)
@@ -111,45 +117,50 @@ methods
         tf = is_dense(obj.poly_sparsity);
     end
 
+    function tf = is_dual(obj)
+        % Check for dual vector.
+        tf = is_dual(obj.poly_sparsity);
+    end
+
     function tf = is_equal(obj,p)
         % Check if polynomials are equal.
         tf = is_equal(obj.poly_sparsity,p.poly_sparsity);
     end
 
-    function S = sparsity(obj)
-        % Return (copy of) sparsity pattern.
-        S = casos.Sparsity(obj.poly_sparsity);
+    function tf = is_homogeneous(obj,varargin)
+        % Check if polynomial is homogeneous.
+        tf = is_homogeneous(obj.poly_sparsity,varargin{:});
     end
 
-    function varargout = grambasis(obj,varargin)
-        % Return a Gram basis for this polynomial.
-        [varargout{1:nargout}] = grambasis(obj.poly_sparsity,varargin{:});
+    function tf = is_matrix(obj)
+        % Check if operator is mapping between vectors.
+        tf = is_matrix(obj.poly_sparsity);
     end
 
-    function l = list_of_degree(obj)
-        % Return a list of degrees.
-        l = list_of_degree(obj.poly_sparsity);
-    end
-
-    function l = list_of_indets(obj)
-        % Return a list of indeterminate variables.
-        l = list_of_indets(obj.poly_sparsity);
-    end
-
-    function Z = monomials(obj,deg)
-        % Return monomial sparsity pattern.
-        if nargin > 1
-            % create pattern
-            Z = monomials@casos.package.core.AlgebraicObject(obj,deg);
-        else
-            % return pattern
-            Z = monomials(obj.poly_sparsity);
-        end
+    function tf = is_operator(obj)
+        % Check for operator between polynomials.
+        tf = is_operator(obj.poly_sparsity);
     end
 
     function tf = is_wellposed(obj)
         % Check if polynomial is well posed.
         tf = is_wellposed(obj.poly_sparsity);
+    end
+
+    function tf = is_zerodegree(obj)
+        % Check if polynomial is of degree zero.
+        tf = is_zerodegree(obj.poly_sparsity);
+    end
+
+    %% Sparsity operations
+    function obj = primalize(obj)
+        % Convert to primal vector (polynomial).
+        obj = sparsity_cast(obj,primalize(obj.poly_sparsity));
+    end
+
+    function obj = dualize(obj)
+        % Convert to dual vector (operator).
+        obj = sparsity_cast(obj,dualize(obj.poly_sparsity));
     end
 
     %% Conversion
@@ -169,14 +180,39 @@ methods
         p = cat@casos.package.core.PolynomialInterface(dim,varargin{:});
     end
 
+    function p = horzcat(varargin)
+        % Horizontal concatenation.
+        p = horzcat@casos.package.core.PolynomialInterface(varargin{:});
+    end
+
     function p = vertcat(varargin)
         % Vertical concatenation.
         p = vertcat@casos.package.core.PolynomialInterface(varargin{:});
     end
 
-    function p = horzcat(varargin)
-        % Horizontal concatenation.
-        p = horzcat@casos.package.core.PolynomialInterface(varargin{:});
+    %% Misc
+    function l = list_of_degree(obj)
+        % Return a list of degrees.
+        l = list_of_degree(obj.poly_sparsity);
+    end
+
+    function l = list_of_indets(obj)
+        % Return a list of indeterminate variables.
+        l = list_of_indets(obj.poly_sparsity);
+    end
+
+    %% Display
+    function disp(obj)
+        % Print string representation to command line.
+        if ~is_operator(obj)
+            % display as matrix
+            disp_matrix(obj);
+        else
+            % display with signature
+            in = signature(obj.sparsity_in,true); 
+            out = signature(obj.sparsity_out,true);
+            fprintf('%s: [%s]->[%s]\n',to_char(obj),in{:},out{:});
+        end
     end
 end
 
@@ -215,11 +251,6 @@ methods (Access=protected)
                 res = get_nvars(obj.poly_sparsity,I);
             case 'nterm'
                 res = get_nterm(obj.poly_sparsity,I);
-            case 'degrees'
-                if length(indexOp) > 2, res = degrees(obj.poly_sparsity,I);
-                else, [varargout{1:nargout}] = degrees(obj.poly_sparsity,I);
-                    return
-                end
             case 'indeterminates'
                 res = get_indets(obj.poly_sparsity,I);
             case 'monomials'
@@ -262,13 +293,15 @@ methods (Static,Access=protected)
         if nargin < 1
             % default syntax
             S = casos.Sparsity.scalar;
-        elseif isnumeric(w)
-            % constant polynomial
-            assert(nargin < 2, 'Undefined syntax.')
+        elseif isnumeric(w) && nargin < 2
+            % zero-degree polynomial (syntax 1)
             S = casos.Sparsity.dense(w);
         elseif nargin < 2
             % sparsity pattern
             S = casos.Sparsity(w);
+        elseif isnumeric(w) && isnumeric(sz)
+            % zero-degree polynomial (syntax 2)
+            S = casos.Sparsity.dense(w,sz);
         elseif ischar(sz)
             % type given
             assert(nargin < 3, 'Undefined syntax.')

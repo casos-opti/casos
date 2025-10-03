@@ -34,12 +34,17 @@ if ~isempty(ii)
     % new polynomial
     p = obj.new_poly;
     % reference coefficients
-    [S,p.coeffs] = coeff_subsref(obj.get_sparsity,obj.coeffs,ii,size(ii));
+    [S,p.coeffs] = coeff_subsref(obj.get_sparsity,obj.coeffs,ii(:),size(ii));
 
     % set sparsity
     p = set_sparsity(p,S);
+
+elseif is_operator(obj)
+    % empty reference (operator)
+    p = obj.zero_operator(size(ii));
+
 else
-    % empty reference
+    % empty reference (polynomial)
     p = obj.zeros(size(ii));
 end
 

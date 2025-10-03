@@ -7,6 +7,28 @@
 function c = times(a,b)
 % Element-wise multiplication of two polynomial matrices.
 
+assert(~is_operator(a) || ~is_operator(b), 'Multiplication of operators not allowed.')
+
+if is_operator(b)
+    % RHS is operator
+    c = times(b,a);
+    return
+
+elseif is_operator(a)
+    % LHS is operator
+    assert(isscalar(b) && is_zerodegree(b),'Only scalar multiplication allowed for operators.')
+
+    % scalar multiplication
+    c = a.new_poly;
+
+    % multiply coefficients
+    [S,c.coeffs] = coeff_update(a.get_sparsity,a.coeffs*b.coeffs);
+
+    % set sparsity
+    c = set_sparsity(c,S);
+    return
+end
+
 % input dimensions
 sza = size(a);
 szb = size(b);

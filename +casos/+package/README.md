@@ -10,39 +10,65 @@ SPDX-License-Identifier: GPL-3.0-only
 
 ## Polynomial types
 ```mermaid
-flowchart LR
-  subgraph casadi
-    casadi.DM[DM]
-    casadi.SX[SX]
-    casadi.Sparsity[Sparsity]
-  end
-  subgraph casos
-    casos.PD[PD]
-    casos.PS[PS]
-    casos.Sparsity[Sparsity] -.-> casos.Indeterminates[Indeterminates]
-    casos.PDOperator[PDOperator]
-    casos.PSOperator[PSOperator]
-  end
-  subgraph casos.package.core
-    Polynomial --> GenericPolynomial
-    GenericPolynomial --> AlgebraicObject
-    GenericPolynomial --> PolynomialInterface
-    PolynomialInterface --> Printable
-    AbstractOperator --> PolynomialInterface
-  end
-  casos.PD --> Polynomial
-  casos.PD -.-> casadi.DM
-  casos.PS --> Polynomial
-  casos.PS -.-> casadi.SX
-  casos.PDOperator --> AbstractOperator
-  casos.PDOperator -.-> casadi.DM
-  casos.PSOperator --> AbstractOperator
-  casos.PSOperator -.-> casadi.SX
-  casos.Sparsity --> PolynomialInterface
-  casos.Sparsity -.-> casadi.Sparsity
-  casos.Indeterminates --> AlgebraicObject
-  GenericPolynomial -.-> casos.Sparsity
-  AbstractOperator -.-> casos.Sparsity
+---
+config:
+  class:
+    hideEmptyMembersBox: true
+---
+classDiagram
+  direction LR
+  namespace casadi {
+    class casadi.DM["DM"]
+    class casadi.SX["SX"]
+    class casadi.Sparsity["Sparsity"]
+  }
+  namespace casos.package.core {
+    class Polynomial
+    class GenericPolynomial
+    class AlgebraicObject
+    class PolynomialInterface
+    class Printable
+  }
+  Polynomial --|> GenericPolynomial
+  GenericPolynomial --|> AlgebraicObject
+  GenericPolynomial --|> PolynomialInterface
+  PolynomialInterface --|> Printable
+  %% general
+  class casos.PD
+  class casos.PS
+  class casos.Sparsity
+  class casos.Indeterminates
+  casos.Sparsity o-- casos.Indeterminates
+  casos.PD --|> Polynomial
+  casos.PD -- casadi.DM
+  casos.PS --|> Polynomial
+  casos.PS -- casadi.SX
+  casos.Sparsity --|> PolynomialInterface
+  casos.Sparsity -- casadi.Sparsity
+  casos.Indeterminates --|> AlgebraicObject
+  GenericPolynomial o-- casos.Sparsity
+```
+
+## Sparsity types
+```mermaid
+---
+config:
+  class:
+    hideEmptyMembersBox: true
+---
+classDiagram
+  direction LR
+  namespace casos.package.core {
+    class AbstractSparsity
+    class PolynomialSparsity
+    class OperatorSparsity
+  }
+  AbstractSparsity <|-- PolynomialSparsity
+  PolynomialSparsity o-- casos.Indeterminates
+  PolynomialSparsity -- casadi.Sparsity
+  AbstractSparsity <|-- OperatorSparsity
+  OperatorSparsity -- casadi.Sparsity
+  casos.Sparsity *-- AbstractSparsity
 ```
 
 ## Functions & Solvers

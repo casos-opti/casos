@@ -9,6 +9,11 @@ function p = blockcat(a,b,c,d)
 
 p = a.new_poly;
 
+% check for operators
+tf = [is_operator(a) is_operator(b) is_operator(c) is_operator(d)];
+
+assert(all(~tf) || all(tf), 'Must not mix polynomials and operators.')
+
 % concatenate coefficient matrices
 [S,p.coeffs] = coeff_blkcat(a.get_sparsity, ...
                             b.get_sparsity, ...
