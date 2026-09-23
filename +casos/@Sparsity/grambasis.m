@@ -82,40 +82,65 @@ I = any(Lz,1);
 degmat = z.degmat(I,:);
 Lz(:,~I) = [];
 
-% removes monomials outside half Newton polytope
-if ~isempty(newton_solver)
-    Ldegmat_red = Ldegmat(idx,:);
-    Lz_red = arrayfun(@(i) newton_reduce(S.degmat(Ldegmat_red(i,:),Iv),degmat,newton_solver,Lz(i,:)'), 1:lp, 'UniformOutput', false);
-    Lz_red = horzcat(Lz_red{:})';
+[Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
+
+if ~isempty(K)
+    % vectorized computation of diagonal indices for each Gram block
+    Kp2 = K.^2;
+    % starting offset of each block
+    block_offsets = [0; cumsum(Kp2(1:end-1))];   
     
-    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets,Lz_red);
-else
-    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
+    % diagonal positions within a kxk block
+    diag_offsets = arrayfun(@(k) ((0:k-1)*k + (1:k)).', K, 'UniformOutput', false);
+    diag_idx = vertcat(diag_offsets{:}) + repelem(block_offsets(:), K(:));
+    
+    % map polynomials into the Gram monomial basis Z
+    poly_in_basis = poly2basis(casos.PS(S), Z);
+    zero_rows     = find(full(casos.PD(poly_in_basis))==0);   
+    
+    % build block-diagonal "ones" pattern once
+    total = sum(K);
+    % build via sparse accumulation
+    rows = zeros(total,1);
+    cols = zeros(total,1);
+    off = 0; p = 0;
+    for k = K'
+        r = (1:k).' + off;
+        % all combinations in block: r repeated
+        rows(p+1:p+k*k) = repmat(r, k, 1);
+        cols(p+1:p+k*k) = repelem(r, k);
+        p = p + k*k;
+        off = off + k;
+    end
+    idx_static = sparse(rows, cols, true, total, total);
+    idx = idx_static;
+    
+    while true
+        % for each zero row, count how many nonzero entries it has in Mp
+        nnz_per_row     = sum(spones(Mp*diag(idx(idx_static))), 2);
+        single_nnz_rows = find(nnz_per_row==1);
+        lia = ismember(single_nnz_rows, zero_rows);
+
+        if all(lia==false); break; end
+
+        % rows to process
+        rows_to_fix = single_nnz_rows(lia);
+
+        [~,loc] = ind2sub(size(Mp(rows_to_fix,:)), find(Mp(rows_to_fix,:)==1));
+
+        % map back to original column indices
+        loc2 = ismember(diag_idx, loc);
+
+        % remove column (i,:) and row at (:,i)
+        idx(loc2,:) = 0;
+        idx(:,loc2) = 0;
+
+        % remove monomial
+        Lz(loc2) = false;
+    end
+    
+    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);
 end
-
-% -------------------------------------------------------------------------
-% linear indices of the diagonal entries of each Gram block
-diag_idx = [];
-block_offset = 0;
-for i = 1:numel(K)
-    k = K(i);
-    diag_idx = [diag_idx; block_offset + ((0:k-1)*k + (1:k)).'];
-    block_offset = block_offset + k^2;
-end
-
-% map the polynomials into the Gram monomial basis Z, and find the rows
-% of the resulting coefficient matrix that are identically zero
-poly_in_basis = poly2basis(casos.PS(S), Z);
-zero_rows     = find(full(casos.PD(poly_in_basis))==0); 
-
-% for each zero row, count how many nonzero entries it has in Mp.
-nnz_per_row     = sum(spones(Mp(zero_rows,:)), 2);
-single_nnz_rows = find(nnz_per_row==1); 
-
-% check whether those single-nonzero rows hit a diagonal entry
-is_diag_entry = ismember(single_nnz_rows, diag_idx);
-
-% -------------------------------------------------------------------------
 
 % build half-basis for each element
 [i,j] = find(Lz');
