@@ -93,6 +93,30 @@ else
     [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
 end
 
+% -------------------------------------------------------------------------
+% linear indices of the diagonal entries of each Gram block
+diag_idx = [];
+block_offset = 0;
+for i = 1:numel(K)
+    k = K(i);
+    diag_idx = [diag_idx; block_offset + ((0:k-1)*k + (1:k)).'];
+    block_offset = block_offset + k^2;
+end
+
+% map the polynomials into the Gram monomial basis Z, and find the rows
+% of the resulting coefficient matrix that are identically zero
+poly_in_basis = poly2basis(casos.PS(S), Z);
+zero_rows     = find(full(casos.PD(poly_in_basis))==0); 
+
+% for each zero row, count how many nonzero entries it has in Mp.
+nnz_per_row     = sum(spones(Mp(zero_rows,:)), 2);
+single_nnz_rows = find(nnz_per_row==1); 
+
+% check whether those single-nonzero rows hit a diagonal entry
+is_diag_entry = ismember(single_nnz_rows, diag_idx);
+
+% -------------------------------------------------------------------------
+
 % build half-basis for each element
 [i,j] = find(Lz');
 coeffs = casadi.Sparsity.triplet(size(Lz,2),lp,i-1,j-1);
