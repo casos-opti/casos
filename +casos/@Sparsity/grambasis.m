@@ -86,13 +86,17 @@ Lz(:,~I) = [];
 
 if ~isempty(K)
     % vectorized computation of diagonal indices for each Gram block
-    Kp2 = K.^2;
+    Kp2 = K(:).^2;
     % starting offset of each block
-    block_offsets = [0; cumsum(Kp2(1:end-1))];   
+    block_offsets = [0; cumsum(Kp2(1:end-1))];  
+    % indexes for later update of monomial basis
+    col_idx = repelem(1:numel(K), K);
+    row_idx = cell2mat(arrayfun(@(k) 1:k, K', 'UniformOutput', false));
     
     % diagonal positions within a kxk block
     diag_offsets = arrayfun(@(k) ((0:k-1)*k + (1:k)).', K, 'UniformOutput', false);
-    diag_idx = vertcat(diag_offsets{:}) + repelem(block_offsets(:), K(:));
+    temp = repelem(block_offsets(:), K(:));
+    diag_idx = vertcat(diag_offsets{:}) + temp(:);
     
     % map polynomials into the Gram monomial basis Z
     poly_in_basis = poly2basis(casos.PS(S), Z);
@@ -117,7 +121,8 @@ if ~isempty(K)
     
     while true
         % for each zero row, count how many nonzero entries it has in Mp
-        nnz_per_row     = sum(spones(Mp*diag(idx(idx_static))), 2);
+        Mp_red = Mp*diag(idx(idx_static));
+        nnz_per_row = sum(Mp_red,2);
         single_nnz_rows = find(nnz_per_row==1);
         lia = ismember(single_nnz_rows, zero_rows);
 
@@ -125,20 +130,23 @@ if ~isempty(K)
 
         % rows to process
         rows_to_fix = single_nnz_rows(lia);
-
-        [~,loc] = ind2sub(size(Mp(rows_to_fix,:)), find(Mp(rows_to_fix,:)==1));
-
+        [~,loc] = find(Mp_red(rows_to_fix,:));
+        
         % map back to original column indices
         loc2 = ismember(diag_idx, loc);
 
         % remove column (i,:) and row at (:,i)
-        idx(loc2,:) = 0;
-        idx(:,loc2) = 0;
+        idx(loc2,:) = false;
+        idx(:,loc2) = false;
 
         % remove monomial
-        Lz(loc2) = false;
+        lin = sub2ind(size(Lz), col_idx(loc2), row_idx(loc2));
+        Lz(lin) = false;
     end
     
+    degmat = degmat(any(Lz, 1),:);
+    Lz     = Lz(:,any(Lz, 1)); 
+
     [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);
 end
 
