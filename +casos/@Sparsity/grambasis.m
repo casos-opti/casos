@@ -4,12 +4,12 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K,z,Mp,Md] = grambasis(S,I,newton_solver)
+function [Z,K,z,Mp,Md] = grambasis(S,I,prune)
 % Return Gram basis of polynomial vector.
 
 if nargin < 3
-    % no Newton simplification
-    newton_solver = '';
+    % no simplification
+    prune = false;
 end
 
 if nargin < 2 || isempty(I)
@@ -82,15 +82,76 @@ I = any(Lz,1);
 degmat = z.degmat(I,:);
 Lz(:,~I) = [];
 
-% removes monomials outside half Newton polytope
-if ~isempty(newton_solver)
-    Ldegmat_red = Ldegmat(idx,:);
-    Lz_red = arrayfun(@(i) newton_reduce(S.degmat(Ldegmat_red(i,:),Iv),degmat,newton_solver,Lz(i,:)'), 1:lp, 'UniformOutput', false);
-    Lz_red = horzcat(Lz_red{:})';
+[Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
+
+% apply zero diagonal algorithm
+if ~isempty(K) && prune
+    % vectorized computation of diagonal indices for each Gram block
+    Kp2 = K(:).^2;
+    % starting offset of each block
+    block_offsets = [0; cumsum(Kp2(1:end-1))];  
     
-    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets,Lz_red);
-else
-    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
+    % indexes for later update of monomial basis
+    [col_idx,row_idx] = find(Lz'==1);
+
+    % diagonal positions within a kxk block
+    diag_offsets = arrayfun(@(k) ((0:k-1)*k + (1:k)).', K, 'UniformOutput', false);
+    temp = repelem(block_offsets(:), K(:));
+    diag_idx = vertcat(diag_offsets{:}) + temp(:);
+    
+    % get sos entries in S (only) 
+    poly = casos.PS(S);
+
+    % map polynomials into the Gram monomial basis Z
+    poly_in_basis = poly2basis(poly(idx), Z);
+    zero_rows     = find(full(casos.PD(poly_in_basis))==0);   
+    
+    % build block-diagonal "ones" pattern once
+    total = sum(K);
+    % build via sparse accumulation
+    rows = zeros(total,1);
+    cols = zeros(total,1);
+    off = 0; p = 0;
+    for k = K'
+        r = (1:k).' + off;
+        % all combinations in block: r repeated
+        rows(p+1:p+k*k) = repmat(r, k, 1);
+        cols(p+1:p+k*k) = repelem(r, k);
+        p = p + k*k;
+        off = off + k;
+    end
+    idx_static = sparse(rows, cols, true, total, total);
+    idx = idx_static;
+
+    while true
+        % for each zero row, count how many nonzero entries it has in Mp
+        Mp_red = Mp*diag(idx(idx_static));
+        nnz_per_row = sum(Mp_red,2);
+        single_nnz_rows = find(nnz_per_row==1);
+        lia = ismember(single_nnz_rows, zero_rows);
+
+        if all(lia==false); break; end
+
+        % rows to process
+        rows_to_fix = single_nnz_rows(lia);
+        [~,loc] = find(Mp_red(rows_to_fix,:));
+        
+        % map back to original column indices
+        loc2 = ismember(diag_idx, loc);
+
+        % remove column (i,:) and row at (:,i)
+        idx(loc2,:) = false;
+        idx(:,loc2) = false;
+
+        % remove monomial
+        lin = sub2ind(size(Lz), row_idx(loc2), col_idx(loc2));
+        Lz(lin) = false;
+    end
+    
+    degmat = degmat(any(Lz, 1),:);
+    Lz     = Lz(:,any(Lz, 1)); 
+
+    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);
 end
 
 % build half-basis for each element
