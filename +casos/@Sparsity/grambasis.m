@@ -99,8 +99,11 @@ if ~isempty(K) && prune
     temp = repelem(block_offsets(:), K(:));
     diag_idx = vertcat(diag_offsets{:}) + temp(:);
     
+    % get sos entries in S (only) 
+    poly = casos.PS(S);
+
     % map polynomials into the Gram monomial basis Z
-    poly_in_basis = poly2basis(casos.PS(S), Z);
+    poly_in_basis = poly2basis(poly(idx), Z);
     zero_rows     = find(full(casos.PD(poly_in_basis))==0);   
     
     % build block-diagonal "ones" pattern once
