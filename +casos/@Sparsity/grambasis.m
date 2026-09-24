@@ -4,12 +4,12 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K,z,Mp,Md] = grambasis(S,I,newton_solver)
+function [Z,K,z,Mp,Md] = grambasis(S,I,prune)
 % Return Gram basis of polynomial vector.
 
 if nargin < 3
-    % no Newton simplification
-    newton_solver = '';
+    % no simplification
+    prune = false;
 end
 
 if nargin < 2 || isempty(I)
@@ -85,7 +85,7 @@ Lz(:,~I) = [];
 [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
 
 % apply zero diagonal algorithm
-if ~isempty(K)
+if ~isempty(K) && prune
     % vectorized computation of diagonal indices for each Gram block
     Kp2 = K(:).^2;
     % starting offset of each block
