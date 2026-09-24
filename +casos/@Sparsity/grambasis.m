@@ -84,15 +84,16 @@ Lz(:,~I) = [];
 
 [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
 
+% apply zero diagonal algorithm
 if ~isempty(K)
     % vectorized computation of diagonal indices for each Gram block
     Kp2 = K(:).^2;
     % starting offset of each block
     block_offsets = [0; cumsum(Kp2(1:end-1))];  
-    % indexes for later update of monomial basis
-    col_idx = repelem(1:numel(K), K);
-    row_idx = cell2mat(arrayfun(@(k) 1:k, K', 'UniformOutput', false));
     
+    % indexes for later update of monomial basis
+    [col_idx,row_idx] = find(Lz'==1);
+
     % diagonal positions within a kxk block
     diag_offsets = arrayfun(@(k) ((0:k-1)*k + (1:k)).', K, 'UniformOutput', false);
     temp = repelem(block_offsets(:), K(:));
@@ -118,7 +119,7 @@ if ~isempty(K)
     end
     idx_static = sparse(rows, cols, true, total, total);
     idx = idx_static;
-    
+
     while true
         % for each zero row, count how many nonzero entries it has in Mp
         Mp_red = Mp*diag(idx(idx_static));
@@ -140,7 +141,7 @@ if ~isempty(K)
         idx(:,loc2) = false;
 
         % remove monomial
-        lin = sub2ind(size(Lz), col_idx(loc2), row_idx(loc2));
+        lin = sub2ind(size(Lz), row_idx(loc2), col_idx(loc2));
         Lz(lin) = false;
     end
     
