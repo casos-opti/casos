@@ -4,7 +4,7 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K,z,Mp,Md] = grambasis(S,I,prune)
+function [Z,K,z,Mp,Md,z_rem] = grambasis(S,I,prune)
 % Return Gram basis of polynomial vector.
 
 if nargin < 3
@@ -84,18 +84,17 @@ Lz(:,~Ir) = [];
 
 [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
 
+% empty sparsity for removed monomials
+z_rem = casos.Sparsity;
+
 % apply zero diagonal algorithm
 if ~isempty(K) && prune
-    % vectorized computation of diagonal indices for each Gram block
-    block_offsets = [0; cumsum(K(1:end-1).^2)];  
-    
     % indexes for later update of monomial basis
     [col_idx,row_idx] = find(Lz'==1);
 
     % diagonal positions within a kxk block
     diag_offsets = arrayfun(@(k) ((0:k-1)*k + (1:k)).', K, 'UniformOutput', false);
-    temp = repelem(block_offsets(:), K(:));
-    diag_idx = vertcat(diag_offsets{:}) + temp(:);
+    diag_idx = vertcat(diag_offsets{:}) + reshape(repelem([0; cumsum(K(1:end-1).^2)], K(:)), [], 1);
     
     [Smat, SLmat] = get_degmat(S,I);
     [Zmat, ZLmat] = get_degmat(Z);
@@ -105,7 +104,7 @@ if ~isempty(K) && prune
 
     % block-diagonal of ones, one k×k dense block per element of K
     c = repelem(1:numel(K), K);          % block id per row/col
-    idx = (c == c.');                    % block-diagonal mask
+    idx = sparse((c == c.'));            % block-diagonal mask
     idx_static = idx;
 
     loc2_saver = false(size(diag_idx));
@@ -124,16 +123,17 @@ if ~isempty(K) && prune
 
         % remove column (i,:) and row at (:,i)
         idx(loc2,:) = false;    idx(:,loc2) = false;
-       
-        % % save removed monomials from basis (for debug)
-        % Lz_del = sparse(row_idx(loc2), col_idx(loc2), 1, size(Lz_red,1), size(Lz_red,2));
-        % [i,j] = find(Lz_del');
-        % coeffs = casadi.Sparsity.triplet(size(Lz_del,2),lp,i-1,j-1);
-        % z_del = casos.Sparsity;
-        % [z_del.coeffs,z_del.degmat] = uniqueDeg(coeffs,degmat);
-        % z_del.indets = indets;
-        % z_del.matdim = [lp 1];
-        % collect_rem{iter} = z_del;  
+    end
+
+    % save removed monomials from basis (for debug)
+    if nargout == 6
+        Lz_del = sparse(row_idx(loc2_saver), col_idx(loc2_saver), 1, size(Lz,1), size(Lz,2));
+        [i,j] = find(Lz_del');
+        coeffs = casadi.Sparsity.triplet(size(Lz_del,2),lp,i-1,j-1);
+        z_rem = casos.Sparsity;
+        [z_rem.coeffs,z_rem.degmat] = uniqueDeg(coeffs,degmat);
+        z_rem.indets = indets;
+        z_rem.matdim = [lp 1];
     end
 
     % remove monomial and update (K,Z,Mp,Md)
