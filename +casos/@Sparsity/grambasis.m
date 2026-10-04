@@ -144,8 +144,9 @@ if ~isempty(K) && prune
     % update the mappings Mp and Md 
     Mp = Mp*diag(idx(idx_static));
     Md = Md*diag(idx(idx_static));
-    Mp(:,all(Mp==0,1)) = [];
-    Md(:,all(Md==0,1)) = [];
+    spar = ~any(Mp,1);
+    Mp(:, spar) = [];
+    Md(:, spar) = [];
 
     % update the cone sizes
     K = full(sum(Lz,2));
