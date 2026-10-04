@@ -97,6 +97,7 @@ if ~isempty(K) && prune
     diag_idx = vertcat(diag_offsets{:}) + reshape(repelem([0; cumsum(K(1:end-1).^2)], K(:)), [], 1);
     
     [Smat, SLmat] = get_degmat(S,I);
+    SLmat = SLmat(:,any(SLmat(I,:),1));
     [Zmat, ZLmat] = get_degmat(Z);
 
     poly_in_basis = arrayfun(@(i) ismember(Zmat(ZLmat(i,:),:), Smat(SLmat(i,:),:), 'rows'), 1:size(idx,1), 'UniformOutput', false);
