@@ -1,3 +1,9 @@
+% SPDX-FileCopyrightText: 2026 Institute of Flight Mechanics and Controls, University of Stuttgart
+% SPDX-FileCopyrightText: Author(s): Torbjørn Cunis <tcunis@ifr.uni-stuttgart.de>
+% SPDX-FileContributor: For a full list of contributors, see <https://github.com/casos-opti/casos>
+%
+% SPDX-License-Identifier: GPL-3.0-only
+
 function [M,S] = op2basis(obj,varargin)
 % Return a matrix of nonzero coordinates for given input and output basis
 % (sparsity). If no basis is given, the operator's sparsity patterns are

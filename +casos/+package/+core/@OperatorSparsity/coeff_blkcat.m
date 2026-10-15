@@ -1,3 +1,9 @@
+% SPDX-FileCopyrightText: 2026 Institute of Flight Mechanics and Controls, University of Stuttgart
+% SPDX-FileCopyrightText: Author(s): Torbjørn Cunis <tcunis@ifr.uni-stuttgart.de>
+% SPDX-FileContributor: For a full list of contributors, see <https://github.com/casos-opti/casos>
+%
+% SPDX-License-Identifier: GPL-3.0-only
+
 function [S,coeffs] = coeff_blkcat(obj,S2,S3,S4,cf1,cf2,cf3,cf4)
 % Coefficient matrix of block concatenation.
 

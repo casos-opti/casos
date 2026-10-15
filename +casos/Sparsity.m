@@ -1,3 +1,9 @@
+% SPDX-FileCopyrightText: 2026 Institute of Flight Mechanics and Controls, University of Stuttgart
+% SPDX-FileCopyrightText: Author(s): Torbjørn Cunis <tcunis@ifr.uni-stuttgart.de>
+% SPDX-FileContributor: For a full list of contributors, see <https://github.com/casos-opti/casos>
+%
+% SPDX-License-Identifier: GPL-3.0-only
+
 classdef (InferiorClasses = {?casadi.Sparsity, ?casadi.DM, ?casadi.SX, ?casadi.MX}) ...
     Sparsity < casos.package.core.PolynomialInterface
 % Sparsity of polynomials and polynomial operators.
