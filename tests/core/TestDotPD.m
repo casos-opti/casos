@@ -69,7 +69,8 @@ methods
         actual = dot(value1,value2);
 
         % perform assertion
-        test_case.verifyClass(actual,?casadi.DM);
+        test_case.verifyClass(actual,?casos.PD);
+        test_case.assertTrue(is_zerodegree(actual),"Value must be of degree zero.");
         test_case.verifyEqual(full(actual),reference,"RelTol",1e-15);
     end
 end
