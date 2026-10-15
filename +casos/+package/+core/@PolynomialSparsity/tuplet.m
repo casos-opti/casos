@@ -15,8 +15,6 @@ assert(is_indet(x),'x must be indeterminate variables.')
 assert(length(x) == size(degrees,2),'Mismatch of number of indeterminate variables.')
 assert(length(i) == size(degrees,1),'Mismatch of length of degrees.')
 
-S = casos.Sparsity;
-
 % convert subindices to column index
 col = sub2ind([n m],i+1,j+1); % 1-index
 
@@ -27,9 +25,9 @@ coeffs = casadi.Sparsity.triplet(length(col),n*m,0:length(col)-1,col-1); % 0-ind
 [coeffs,degmat] = uniqueDeg(coeffs,degrees);
 
 % remove redundant zeros
-[S.coeffs,S.degmat,S.indets] = removeZero(coeffs,degmat,casos.Indeterminates(x));
+[coeffs,degmat,indets] = removeZero(coeffs,degmat,casos.Indeterminates(x));
 
-% set dimensions
-S.matdim = [n m];
+% create sparsity pattern
+S = new_from_coefficients(coeffs,degmat,indets,[n m]);
 
 end

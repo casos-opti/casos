@@ -83,22 +83,27 @@ methods
 
     function [S,varargout] = gram(obj) %#ok<STOUT>
         % Return gram basis for a monomial sparsity pattern.
-        error('Function "gram" not supported by class "%s".', class(obj));
+        error('Function "gram" not supported by class "%s".', class(obj))
     end
 
     function [S,varargout] = grambasis(obj,varargin) %#ok<STOUT>
         % Return gram basis for a polynomial sparsity pattern.
-        error('Function "grambasis" not supported by class "%s".', class(obj));
+        error('Function "grambasis" not supported by class "%s".', class(obj))
     end
 
     function S = gramunit(obj) %#ok<STOUT>
         % Return gram unit basis for a monomial sparsity pattern.
-        error('Function "gramunit" not supported by class "%s".', class(obj));
+        error('Function "gramunit" not supported by class "%s".', class(obj))
     end
 
     function [i,j] = get_triplet(obj)
         % Return triplets for polynomial sparsity pattern.
         [i,j] = matrix_triplet(obj); % TODO
+    end
+
+    function [i,j,degrees] = get_tuplet(obj) %#ok<STOUT>
+        % Return tuplets for polynomial sparsity pattern.
+        error('Function "get_tuplet" not supported by class "%s".', class(obj))
     end
 
     function z = monomials(obj) %#ok<STOUT>

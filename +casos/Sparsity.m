@@ -74,6 +74,10 @@ classdef (InferiorClasses = {?casadi.Sparsity, ?casadi.DM, ?casadi.SX, ?casadi.M
 %
 % create zero-degree operator pattern.
 %
+%   tuplet(int,int,vector int,vector int,Indeterminates,matrix int)
+%
+% create polyomial sparsity pattern from tuplets.
+%
 
 properties (Access=private)
     % sparsity pattern
@@ -329,6 +333,13 @@ methods
         [i,j] = get_triplet(obj.pattern);
     end
 
+    function [i,j,degrees] = get_tuplet(obj)
+        % Return tuplets for polynomial sparsity pattern.
+        assert(~is_null(obj), 'Null pointer.')
+        assert(~is_operator(obj), 'Not allowed for operators.')
+        [i,j,degrees] = get_tuplet(obj.pattern);
+    end
+
     function [S,varargout] = gram(obj)
         % Return Gram basis of a monomial sparsity pattern.
         assert(~is_null(obj), 'Null pointer.')
@@ -526,6 +537,11 @@ methods (Static)
     function S = triplet(n,m,i,j,varargin)
         % Create sparsity pattern with triplets.
         S = casos.Sparsity(casadi.Sparsity.triplet(n,m,i,j),varargin{:});
+    end
+
+    function S = tuplet(n,m,i,j,x,degrees)
+        % Create sparsity pattern with tuplets.
+        S = casos.Sparsity(casos.package.core.PolynomialSparsity.tuplet(n,m,i,j,x,degrees));
     end
     
     %% Operator constructors
