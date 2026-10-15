@@ -30,7 +30,7 @@ elseif isempty(obj) || (isscalar(obj) && isempty(S)) || (islogical(S) && all(~S)
         S = casos.Sparsity(0,0);
     end
     % empty coefficients
-    c = obj.new_coeffs(0,1);
+    c = obj.new_coeff(0,1);
     return
 
 elseif islogical(S)

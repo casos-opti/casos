@@ -19,6 +19,10 @@ if is_operator(p)
     
 else
 
+% input dimensions
+szp = size(p);
+szb = size(b);
+
 % dimensions are compatible if equal or one summand is row/column
 [tf,sz] = check_sz_basic(p,b);
 

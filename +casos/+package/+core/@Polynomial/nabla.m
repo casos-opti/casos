@@ -12,7 +12,7 @@ assert(is_indet(x), 'Second argument must be vector of indeterminates.')
 
 if (isempty(a) || isempty(x))
     % empty Jacobian matrix
-    b = a.empty(numel(f),length(x));
+    b = a.empty(numel(a),length(x));
     return
 end
 

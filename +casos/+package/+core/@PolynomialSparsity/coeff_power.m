@@ -17,7 +17,7 @@ nen = numel(n);
 % reshape to dimensions of coefficient matrix
 deg = reshape(deg,1,neb);
 
-if nva == 0 ... % base polynomial is a constant
+if (nva == 0) ... % base polynomial is a constant
     || (nta == 1 && nen == 1) % a^n = c*(x^d)^n
     % find zero degrees
     in = find(deg == 0); % 1-index
@@ -32,8 +32,13 @@ if nva == 0 ... % base polynomial is a constant
         % add zero powers (always dense)
         coeffs = casadi.Sparsity.triplet(nta,neb,[ii zeros(size(in))],[jj in-1]); % 0-index
     end
-    % multiply degrees
-    degmat = n.*obj.degmat;
+    if (nva > 0)
+        % multiply degrees
+        degmat = n.*obj.degmat;
+    else
+        % zero-degree polynomial
+        degmat = obj.degmat;
+    end
 
     % new sparsity pattern
     S = new_from_coefficients(coeffs,degmat,obj.indets,size(obj));
