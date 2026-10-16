@@ -42,7 +42,7 @@ measSolver =tic;
 sol_qp   = eval_on_basis(obj.solver_convex, args);
 solveTimeSDP = toc(measSolver);
 % store iteration info
-stats{iter} = obj.solver_convex.get_stats  ;
+stats{iter}.sdpData           = obj.solver_convex.get_stats  ;
 stats{iter}.timeStats.mainSDP = solveTimeSDP;
 
 %% check solution status

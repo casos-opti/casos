@@ -12,7 +12,7 @@ import casos.package.UnifiedReturnStatus
 %% print output with current problem and setting
 printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
 printf(obj.log,'debug',['\t\t Ca' char(931) 'oS-Nonlinear sum-of-squares optimization suite \n']);
-printf(obj.log,'debug','\t\t Sequential Quadratic Sum-of-Squares Solver v1.0, January''26 \n');
+printf(obj.log,'debug','\t\t Sequential Quadratic Sum-of-Squares Solver v1.1, October''26 \n');
 printf(obj.log,'debug','\t\t GNU GENERAL PUBLIC LICENSE \n');
 printf(obj.log,'debug','\t\t Institute of Flight Mechanics and Control, Univ. of Stuttgart \n');
 printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
@@ -117,6 +117,7 @@ alpha_k           = 1;
 
 counterAcceplvl  = 0;
 feasibility_flag = 1;
+counterFeasRes   = 0;
 
 stats.initTime = toc(initTimeMeas);
 
@@ -132,6 +133,10 @@ while iter <= obj.opts.max_iter
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
         iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ))   );
 
+    stats.single_iterations{iter}.cost       = f_x_k;
+    stats.single_iterations{iter}.maxConVio  = theta_x_k;
+    stats.single_iterations{iter}.stepLength = alpha_k;
+
 
     %% check convergence (first-order optimality)
     if full(obj.eval_gradLag(x_k,p0,dual_k))  <= full((obj.opts.tolerance_opt*max(1,abs(f_x_k)) + obj.eval_gradLag2(x_k,p0,dual_k))/delta_xi_double)  ... % scaled optimality
@@ -145,6 +150,7 @@ while iter <= obj.opts.max_iter
         printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+solveTime) ' s\n']);
         feasibility_flag = 1;
         stats.solutionStatus = 'Optimal solution';
+        obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_SUCCESS;
         break
 
     end
@@ -156,7 +162,7 @@ while iter <= obj.opts.max_iter
         % increase counter
         counterAcceplvl = counterAcceplvl +1;
 
-        % we have 5 in a row, seems we solved it to an acceptable level/almost optimal
+        % we have 5-10 in a row, seems we solved it to an acceptable level/almost optimal
         if counterAcceplvl >= obj.opts.almostOptCount
             printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
             printf(obj.log,'debug','Solution status: Almost optimal.\n');
@@ -168,6 +174,7 @@ while iter <= obj.opts.max_iter
             feasibility_flag = 1;
 
             stats.solutionStatus = 'Alomst Optimal solution.';
+            obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_SUCCESS;
             break
         end
     else
@@ -194,7 +201,8 @@ while iter <= obj.opts.max_iter
     % Invoke feasibility restoration if necessary
     if feas_res_flag >= 1 && ...              % restoration requested
             theta_x_k >  obj.opts.tolerance_con    % is the constraint violation larger then tolerance; otherwise restoration does not make sense
-
+        
+        counterFeasRes = counterFeasRes +1;
 
         % parameter (just for readabilty)
         gamma_theta = obj.opts.filter_struct.gamma_theta ;
@@ -211,6 +219,7 @@ while iter <= obj.opts.max_iter
 
         stats.single_iterations{iter}.timeStats = tmptimeStats;
         stats.single_iterations{iter}.timeStats.feasResTime = toc(measFeasResTime);
+
 
         if feasibility_flag >=1
 
@@ -287,6 +296,7 @@ while iter <= obj.opts.max_iter
 
     end
 
+    stats.single_iterations{iter}.counterFeasRes = counterFeasRes; % just a global counter to know, how often invoked
     % return last solution
     if ~isempty(sol_qp)
         sol    = sol_qp;
@@ -333,6 +343,8 @@ if iter >= obj.opts.max_iter
         printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+solveTime) ' s\n']);
 
         stats.solutionStatus = 'Optimal Solution';
+        obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_SUCCESS;
+       
 
     else
 
@@ -344,6 +356,8 @@ if iter >= obj.opts.max_iter
         printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+solveTime) ' s\n']);
 
         stats.solutionStatus = 'Max. Iterations';
+        obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
+       
     end
 end
 
@@ -361,6 +375,7 @@ if feasibility_flag == 0 && iter < obj.opts.max_iter
     printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+solveTime) ' s\n']);
 
     stats.solutionStatus = 'Problem infeasible';
+    obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_INFEASIBLE;
 
 elseif feasibility_flag == -1 && iter < obj.opts.max_iter
 
@@ -378,7 +393,8 @@ elseif feasibility_flag == -1 && iter < obj.opts.max_iter
     printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+solveTime) ' s\n']);
 
     stats.solutionStatus = 'Solver stalled';
-
+    obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
+    
 elseif feasibility_flag == -2 && iter < obj.opts.max_iter
 
     printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
@@ -390,6 +406,7 @@ elseif feasibility_flag == -2 && iter < obj.opts.max_iter
 
 
     stats.solutionStatus = 'Feasible solution';
+    obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_UNKNOWN;
 end
 
 stats.single_iterations = stats.single_iterations(1:iter-1);

@@ -176,7 +176,7 @@ basis_lam_gs  = poly2basis(lam_gs);
 % Langrangian casos function for evaluation
 obj.eval_L = casos.Function('L',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, {Lagrangian });
 
-dLdx = op2basis(jacobian(Lagrangian,nlsos.x))';
+dLdx0 = op2basis(jacobian(Lagrangian,nlsos.x))';
 
 % Hessian of Langrangian; in case we use BFGS, we do not have to explictly
 % compute the Hessian
@@ -188,7 +188,7 @@ end
 obj.eval_s = casos.Function('s',{basis_nlsos_x,basis_xk1,basis_nlsos_p}, { poly2basis( x_k1 - nlsos.x)});
 
 % delta gradient of Langrangian
-dLdx = casos.Function('dLdx',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, {dLdx });
+dLdx = casos.Function('dLdx',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, {dLdx0 });
 obj.eval_dLdx = dLdx;
 
 % y =  \nabla_x L (x_k1,lambda_k1) - \nabla_x L (x_k,lambda_k1)
@@ -212,9 +212,9 @@ obj.damped_BFGS =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*
 % nonlinear cost function
 obj.eval_cost      = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { full(nlsos.f) });
 % gradient cost
-obj.eval_gradCost  = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { op2basis( jacobian(nlsos.f,nlsos.x) ) });
+obj.eval_gradCost  = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { op2basis( Df ) });
 % norm gradient langrangian
-obj.eval_gradLag =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm( op2basis(jacobian(Lagrangian,nlsos.x)),inf ) });
+obj.eval_gradLag =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dLdx0,inf ) });
 obj.eval_gradLag2  =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dot(lam_gs,nlsos.g),inf) });
 obj.eval_constraint = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, {poly2basis(nlsos.g)});
 

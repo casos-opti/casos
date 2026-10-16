@@ -50,14 +50,19 @@ measBackStepTime = tic;
 SocTimeMeas      = [];
 SuffDecreaseTimeMeas = 0;
 
+counterLineserchSteps = 0;
+counterSoC            = 0;
+
 % just for first iteration
 alpha_min = 0;
 
 % invoke feasibility restoration if step-length is below minimum
 feas_res_flag = 2;
+
 % Backtracking linesearch
 while alpha > alpha_min 
-
+    
+    counterLineserchSteps = counterLineserchSteps + 1;
     % compute search direction (primal and dual)
     dk   = (x_star    - x_k);
     dkl  = (dual_star-dual_k);
@@ -119,7 +124,7 @@ while alpha > alpha_min
 
         % invoke soc to avoid maratos effect, if necessary
         if ~filter_Acceptance && alpha == 1 && theta_x_k1 >= theta_xk && obj.opts.enable_SOC
-
+            counterSoC = counterSoC + 1;
             measSocTime = tic;
             % compute corrected search direction, compute new trial point and check for filter acceptance
             [x_k1,suffConSoC,f_type,amijo] = second_order_correction(obj,x_k,x_star,p0,Bk,args,filter,alpha,theta_xk,f_xk,dkl,L_k1,L_k,dual_k);
@@ -176,6 +181,7 @@ sol_iter.theta_x_k1 = theta_x_k1;
 sol_iter.f_x_k1     = f_x_k1;
 sol_iter.alpha_k    = alpha;
 sol_iter.dual_qp    = dual_star;
+
 stats{iter}.constraint_violation = sol_convio;
 
 measHessApp = tic;
@@ -213,6 +219,8 @@ stats{iter}.timeStats.HessApproxTime         = HessApproxTimeMeas;
 stats{iter}.timeStats.totalBackstepTime      = totalBackstepTimeMeas;
 stats{iter}.timeStats.FilterAcceptTime       = FilterAcceptTimeMeas;
 stats{iter}.timeStats.SuffDecreaseTime       = SuffDecreaseTimeMeas;
+stats{iter}.counterSoC                       = counterSoC;
+stats{iter}.counterLineserchSteps            = counterLineserchSteps;
 
 if ~isempty(SocTimeMeas)
     stats{iter}.timeStats.SocTime                = SocTimeMeas;

@@ -26,7 +26,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
             'verbose', 'Turn on/off iteration display.'}
             ];
 
-        status = casos.package.UnifiedReturnStatus.SOLVER_RET_UNKNOWN;
+        
     end
 
     properties (Access=protected)
@@ -66,6 +66,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
 
         % logging & info
         log;
+        status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
         sequential_stats = struct('iter',[]);
     end
 
@@ -131,8 +132,8 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
             filter_struct = struct();
 
             filter_struct.alpha_max       = 1;
-            filter_struct.s_theta         = 0.9;
-            filter_struct.s_phi           = 2;
+            filter_struct.s_theta         = 1.1;
+            filter_struct.s_phi           = 2.3;
             filter_struct.gamma_theta     = 1e-5;
             filter_struct.gamma_phi       = 1e-5;
             filter_struct.gamma_alpha     = 0.05;
