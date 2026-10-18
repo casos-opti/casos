@@ -1,0 +1,22 @@
+% SPDX-FileCopyrightText: 2026 Institute of Flight Mechanics and Controls, University of Stuttgart
+% SPDX-FileCopyrightText: Author(s): Torbjørn Cunis <tcunis@ifr.uni-stuttgart.de>
+% SPDX-FileContributor: For a full list of contributors, see <https://github.com/casos-opti/casos>
+%
+% SPDX-License-Identifier: GPL-3.0-only
+
+function [cf1,cf2,Si,So] = expand_internal(obj,S2,cfa,cfb)
+% Internal function for expansion of operator coefficient matrices.
+
+% join input nonzero coordinates
+[Si,I1i,I2i] = op_join(obj.sparsity_in,S2.sparsity_in);
+% join output nonzero coordinates
+[So,I1o,I2o] = op_join(obj.sparsity_out,S2.sparsity_out);
+
+% size of resulting operator matrix
+sz = [nnz(So) nnz(Si)];
+
+% expand matrices to joint nonzeros
+cf1 = expand_matrix(obj.sparsity_M,cfa,sz,I1i,I1o);
+cf2 = expand_matrix(S2.sparsity_M,cfb,sz,I2i,I2o);
+
+end

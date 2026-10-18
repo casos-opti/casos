@@ -17,11 +17,11 @@ deg = f.maxdeg;
 s = casos.PS.sym('q',monomials(x,0:deg));
 
 % get the cost function
-cost = dot(s,f); % dual pairing between a polynomial and a measure
+cost = full(dot(s,f)); % dual pairing between a polynomial and a measure
 
 % get the decision variables and set the Hankel matrix ( for the
 % multivariate case it is the moment matrix)
-dec = poly2basis(s);
+dec = coordinates(s);
 
 m = 0.5*deg+1;
 H = casadi.SX(m, m);  % Initialize an empty symbolic matrix

@@ -5,17 +5,36 @@
 % SPDX-License-Identifier: GPL-3.0-only
 
 function c = dot(a,b)
-% Scalar dot product of two polynomials.
+% Scalar dot product or duality pairing.
 
-if ~check_sz_equal(a,b)
-    % dimension mismatch
-    throw(casos.package.core.IncompatibleSizesError.other(a,b));
+c = a.new_poly;
+
+if is_operator(a) && ~is_operator(b)
+    % evaluate dual operator (linear form)
+    assert(is_dual(a), 'Only allowed for duals. Use "evaluate" instead.')
+
+    if ~check_sz_equal(a.sparsity_in,b)
+        % dimension mismatch
+        throw(casos.package.core.IncompatibleSizesError.other(a.sparsity_in,b));
+    end
+
+    % evaluation of operator on polynomial
+    [S,c.coeffs] = coeff_evaluate(a.get_sparsity,b.get_sparsity,a.coeffs,b.coeffs);
+
+else
+    % inner product of polynomials
+    assert(is_operator(a) == is_operator(b), 'Must not mix polynomials and operators.')
+
+    if ~check_sz_equal(a,b)
+        % dimension mismatch
+        throw(casos.package.core.IncompatibleSizesError.other(a,b));
+    end
+
+    % compute dot product
+    [S,c.coeffs] = coeff_dot(a.get_sparsity,b.get_sparsity,a.coeffs,b.coeffs);
 end
 
-% expand coefficient matrices to match
-[cf1,cf2] = coeff_expand(a.get_sparsity,b.get_sparsity,a.coeffs,b.coeffs);
-
-% return dot product of coefficients
-c = dot(cf1,cf2);
+% set sparsity
+c = set_sparsity(c,S);
 
 end

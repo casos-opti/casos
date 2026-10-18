@@ -8,7 +8,13 @@ function out = str(obj)
 % Return string representation for polynomial.
 
 if isempty(obj)
+    % return empty string representation
     out = {};
+    return
+
+elseif is_operator(obj)
+    % return string representation for operator
+    out = compose('%s Operator',size_to_char(obj.get_sparsity));
     return
 end
 

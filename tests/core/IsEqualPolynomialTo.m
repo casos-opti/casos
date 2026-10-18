@@ -129,7 +129,7 @@ methods (Access=private)
         % get indeterminates
         actuals.indets = actual_sparse.indeterminates;
         % get nonzero coefficients
-        actuals.coeffs = full(poly2basis(actual_sparse));
+        actuals.coeffs = full(coordinates(actual_sparse));
         % get tuplet
         [actuals.i,actuals.j,actuals.degrees] = get_tuplet(sparsity(actual_sparse));
 

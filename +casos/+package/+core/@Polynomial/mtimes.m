@@ -7,7 +7,14 @@
 function c = mtimes(a,b)
 % Matrix multiplication of two polynomials.
 
-if isscalar(a) || isscalar(b)
+assert(~is_operator(a) || ~is_operator(b),'Multiplication of operators not allowed.')
+
+if is_operator(a) || is_operator(b)
+    % multiplication with operator
+    c = times(a,b);
+    return
+
+elseif isscalar(a) || isscalar(b)
     % fall back to scalar multiplication
     c = times(a,b);
     return

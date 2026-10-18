@@ -7,6 +7,8 @@
 function b = mpower(a,n)
 % Power of polynomial matrix.
 
+assert(~is_operator(a), 'Not allowed for operators.')
+
 if ~check_sz_square(a) || ~isscalar(n)
     % dimensions are compatible if a is square and n is scalar
     throw(casos.package.core.IncompatibleSizesError.mpower(a,n));

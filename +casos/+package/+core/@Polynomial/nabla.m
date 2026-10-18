@@ -4,23 +4,25 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function g = nabla(f,x)
+function b = nabla(a,x)
 % Evaluate polynomial nabla operator (Jacobian matrix).
 
+assert(~is_operator(a), 'Not allowed for operators.')
 assert(is_indet(x), 'Second argument must be vector of indeterminates.')
 
-if (isempty(f) || isempty(x))
+if (isempty(a) || isempty(x))
     % empty Jacobian matrix
-    g = f.empty(numel(f),length(x));
+    b = a.empty(numel(a),length(x));
     return
 end
 
-g = f.new_poly;
+% else:
+b = a.new_poly;
 
 % compute coefficient matrix of Jacobian
-[S,g.coeffs] = coeff_nabla(f.get_sparsity,f.coeffs,x);
+[S,b.coeffs] = coeff_nabla(a.get_sparsity,a.coeffs,x);
 
 % set sparsity
-g = set_sparsity(g,S);
+b = set_sparsity(b,S);
 
 end

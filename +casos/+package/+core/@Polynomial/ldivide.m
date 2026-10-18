@@ -9,6 +9,16 @@ function c = ldivide(a,p)
 
 assert(is_zerodegree(a),'Only division by constant or symbolic matrix possible.')
 
+if is_operator(p)
+    % divide operator by scalar
+    assert(isscalar(a),'Only division by scalar allowed for operators.')
+
+    % divide coefficients by scalar
+    coeffs = a.coeffs .\ p.coeffs;
+    Sp = p.get_sparsity;
+
+else
+
 % input dimensions
 sza = size(a);
 szp = size(p);
@@ -37,8 +47,10 @@ c = p.new_poly;
 % element-wise division of coefficients
 coeffs = coeff_repterms(Sa,cfa,p.nterm) .\ cfp;
 
+end
+
 % update sparsity pattern
-[S,c.coeffs] = coeff_update(Sp,coeffs,sz);
+[S,c.coeffs] = coeff_update(Sp,coeffs);
 
 % set sparsity
 c = set_sparsity(c,S);

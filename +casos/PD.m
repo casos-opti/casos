@@ -4,11 +4,11 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-classdef (InferiorClasses = {?casadi.DM, ?casos.Indeterminates}) ...
+classdef (InferiorClasses = {?casadi.DM, ?casadi.Sparsity, ?casos.Sparsity, ?casos.Indeterminates}) ...
         PD < casos.package.core.Polynomial
 % Polynomial with constant coefficients of type casadi.DM.
 %
-% Constructor summary:
+%% Constructor summary:
 %
 %   PD()
 %
@@ -22,9 +22,14 @@ classdef (InferiorClasses = {?casadi.DM, ?casos.Indeterminates}) ...
 %
 % convert double matrix.
 %
+%   PD(char, ...)
+%   PD(char,int,[int])
+%
+% create vector (matrix) of indeterminate variables.
+%
 %   PD(Sparsity)
 %
-% create from list of monomials 
+% create polynomial from list of monomials 
 % (all non-sparse coefficients equate to 1).
 %
 %   PD(Sparsity,scalar double | DM)
@@ -36,6 +41,26 @@ classdef (InferiorClasses = {?casadi.DM, ?casos.Indeterminates}) ...
 %
 % create polynomial with constant coefficients from vector of nonzeros.
 %
+%   PD(matrix double | DM,Sparsity,Sparsity)
+%
+% create operator with constant coefficients.
+%
+%% Static constructor summary:
+%
+%   empty([int],[int])
+%   eye([int],[int])
+%   ones([int],[int])
+%   zeros([int],[int])
+%
+% create zero-degree matrix polynomial.
+%
+%   id_operator(int,[int])
+%   one_operator(int,[int])
+%   zero_operator(int,[int])
+%
+% create zero-degree operator.
+%
+%%
 
 methods (Static,Access=protected)
     %% Polynomial interface
@@ -62,9 +87,9 @@ methods (Static)
         p = casos.PD(double.empty(varargin{:}));
     end
 
-    function p = zeros(varargin)
-        % Zero polynomial.
-        p = casos.PD(casadi.DM.zeros(varargin{:}));
+    function p = eye(varargin)
+        % Identity matrix.
+        p = casos.PD(casadi.DM.eye(varargin{:}));
     end
 
     function p = ones(varargin)
@@ -72,9 +97,24 @@ methods (Static)
         p = casos.PD(casadi.DM.ones(varargin{:}));
     end
 
-    function p = eye(varargin)
-        % Identity matrix.
-        p = casos.PD(casadi.DM.eye(varargin{:}));
+    function p = zeros(varargin)
+        % Zero polynomial.
+        p = casos.PD(casadi.DM.zeros(varargin{:}));
+    end
+
+    function p = id_operator(varargin)
+        % Identity operator.
+        p = casos.PD(casos.Sparsity.diag_operator(varargin{:}),1);
+    end
+
+    function p = one_operator(varargin)
+        % One operator.
+        p = casos.PD(casos.Sparsity.dense_operator(varargin{:}),1);
+    end
+
+    function p = zero_operator(varargin)
+        % Zero operator.
+        p = casos.PD(casos.Sparsity.dense_operator(varargin{:}),0);
     end
 end
 
@@ -194,6 +234,16 @@ methods
     function c = ptaylor(a,x,b,deg)
         % Polynomial Taylor expansion.
         c = ptaylor@casos.package.core.Polynomial(casos.PD(a),x,casos.PD(b),deg);
+    end
+
+    function c = compose(a,b)
+        % Compose operators.
+        c = compose@casos.package.core.Polynomial(casos.PD(a),casos.PD(b));
+    end
+
+    function c = evaluate(a,b)
+        % Evaluate operator.
+        c = evaluate@casos.package.core.Polynomial(casos.PD(a),casos.PD(b));
     end
 end
 

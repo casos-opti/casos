@@ -82,7 +82,9 @@ methods
         actual = f(argument1{:},argument2{:});
 
         % perform assertion
-        test_case.verifyClass(expression,?casadi.SX);
+        test_case.verifyClass(expression,?casos.PS);
+        test_case.verifyTrue(is_zerodegree(expression),"Expression must be of degree zero.");
+        test_case.assertTrue(is_zerodegree(actual),"Value must be of degree zero.");
         test_case.verifyEqual(full(actual),reference,"RelTol",1e-15);
     end
 end
