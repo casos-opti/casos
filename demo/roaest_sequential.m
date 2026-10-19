@@ -24,14 +24,15 @@ x = casos.Indeterminates('x',2,1);
 f = [-x(2); x(1) + (x(1)^2 - 1)*x(2)];
 
 % initial Lyapunov function
-Vinit = 1.5*x(1)^2 - x(1)*x(2) + x(2)^2;
+% Vinit = 1.5*x(1)^2 - x(1)*x(2) + x(2)^2;
 
+Vinit = x'*x;
 % Lyapunov function candidate
 V = casos.PS.sym('v',monomials(x,2));
 
 % SOS multiplier
-s2 = casos.PS.sym('s2',monomials(x,2));
-s1 = casos.PS.sym('s1',monomials(x,0));
+s2 = casos.PS.sym('s2',monomials(x,0:2));
+s1 = casos.PS.sym('s1',monomials(x,2));
 % enforce positivity
 l = 1e-6*(x'*x);
 
@@ -45,31 +46,32 @@ p = x'*x;
 % options
 opts = struct('sossol','mosek');
 opts.verbose = 1;
-opts.hessian_approx = 'BFGS';
-opts.hessian_init   = 'Identity';
-opts.scale_BFGS0     = 1e-3;
+% opts.hessian_approx = 'BFGS';
+% opts.hessian_init   = 'Identity';
+% opts.scale_BFGS0     = 1e-3;
 
-sos = struct('x',[V;s2;s1;b],'f',-b,'p',[]);
+sos = struct('x',[V;s2;s1;b],'f',b,'p',[]);
 
 % constraints
 sos.('g') = [
              s2;
              s1;
              V-l; 
+             b - 1e-6;
              s2*(V-1)-nabla(V,x)*f-l;
-             s1*(p-b) + 1 - V
+             s1*(p+b) + 1 - V
 ];
 
 % states + constraint are linear/SOS cones
 opts.Kx = struct('lin', 4);
-opts.Kc = struct('sos', 5);
+opts.Kc = struct('sos', 6);
 
 % build sequential solver
 S = casos.nlsossol('S','sequential',sos,opts);
 
 
 %% Solve nonlinear problem
-sol = S('x0',[Vinit; (x'*x); 1; 1]); 
+sol = S('x0',[Vinit; (x'*x); x'*x; 0.1]); 
 
 %% Plot results
 % Lyapunov function

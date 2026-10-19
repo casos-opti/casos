@@ -231,7 +231,7 @@ else
 
 end
 
-stats_glob{iter_glob} = stats{iter};
+stats_glob{iter_glob}.stats_feasRes = stats{iter};
 
 end % end of eval_extended
 

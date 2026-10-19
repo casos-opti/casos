@@ -56,6 +56,8 @@ p0   = args{2};
 % initialize iteration statistics struct
 stats.single_iterations = cell(1,obj.opts.max_iter);
 
+stats.options = obj.opts;
+
 % initialze dual variables
 dual_k = zeros(obj.init_para.no_dual_var,1);
 
@@ -102,6 +104,7 @@ else
         theta_x_k = 0;
     end
 end
+
 % evalaute cost function of nonlinear problem
 f_x_k     = full(obj.eval_cost(x_k,p0));
 
@@ -115,12 +118,20 @@ delta_xi_double   = norm(full( casadi.DM(x_k)),inf);
 delta_dual_double = norm(full( (dual_k)),inf);
 alpha_k           = 1;
 
-counterAcceplvl  = 0;
-feasibility_flag = 1;
-counterFeasRes   = 0;
+% counter until solution is marked almost optimal
+counterAlmostOptIter     = 0;
 
+% flag to indicate current iterate is feasible ( 1 = feasible)
+feasibility_flag         = 1;
+
+% counter how often feasibility restoration is called
+counterRestorationCalls  = 0;
+
+% end of time measurement for initialization
 stats.initTime = toc(initTimeMeas);
 
+
+% main-loop
 while iter <= obj.opts.max_iter
 
     % display output header every 10th iteration
@@ -132,14 +143,17 @@ while iter <= obj.opts.max_iter
     % display output current iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
         iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ))   );
-
+    
+    % store current iterate: cost, max. constraint violation, current step
+    % length and first-order optimality condition
     stats.single_iterations{iter}.cost       = f_x_k;
     stats.single_iterations{iter}.maxConVio  = theta_x_k;
     stats.single_iterations{iter}.stepLength = alpha_k;
+    stats.single_iterations{iter}.dLdx       = full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k))));
 
 
     %% check convergence (first-order optimality)
-    if full(obj.eval_gradLag(x_k,p0,dual_k))  <= full((obj.opts.tolerance_opt*max(1,abs(f_x_k)) + obj.eval_gradLag2(x_k,p0,dual_k))/delta_xi_double)  ... % scaled optimality
+    if full(obj.eval_gradLag(x_k,p0,dual_k))  <= full( (obj.opts.tolerance_opt*max(1,abs(f_x_k)) + obj.eval_gradLag2(x_k,p0,dual_k))/delta_xi_double )  ... % scaled optimality
             && theta_x_k <= obj.opts.tolerance_con && feasibility_flag == 0                                                                                     % constraint violation
 
         printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
@@ -160,10 +174,10 @@ while iter <= obj.opts.max_iter
             && theta_x_k <= obj.opts.tolerance_con
 
         % increase counter
-        counterAcceplvl = counterAcceplvl +1;
+        counterAlmostOptIter = counterAlmostOptIter +1;
 
         % we have 5-10 in a row, seems we solved it to an acceptable level/almost optimal
-        if counterAcceplvl >= obj.opts.almostOptCount
+        if counterAlmostOptIter >= obj.opts.almostOptCount
             printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
             printf(obj.log,'debug','Solution status: Almost optimal.\n');
             solveTime = toc(measTime_seqSOS_in);
@@ -179,7 +193,7 @@ while iter <= obj.opts.max_iter
         end
     else
         % if current iterate is not solved to an acceptable level, reset counter
-        counterAcceplvl = 0;
+        counterAlmostOptIter = 0;
     end
 
     feasibility_flag = 0;
@@ -197,12 +211,13 @@ while iter <= obj.opts.max_iter
         filter, ...
         stats.single_iterations);
 
+
     stats.single_iterations{iter}.timeStats.feasResTime = 0;
     % Invoke feasibility restoration if necessary
-    if feas_res_flag >= 1 && ...              % restoration requested
+    if feas_res_flag >= 1 && ...                   % restoration requested
             theta_x_k >  obj.opts.tolerance_con    % is the constraint violation larger then tolerance; otherwise restoration does not make sense
         
-        counterFeasRes = counterFeasRes +1;
+        counterRestorationCalls= counterRestorationCalls+1;
 
         % parameter (just for readabilty)
         gamma_theta = obj.opts.filter_struct.gamma_theta ;
@@ -296,7 +311,9 @@ while iter <= obj.opts.max_iter
 
     end
 
-    stats.single_iterations{iter}.counterFeasRes = counterFeasRes; % just a global counter to know, how often invoked
+    % store counter in statistics structure
+    stats.single_iterations{iter}.counterRestorationCalls= counterRestorationCalls; 
+    
     % return last solution
     if ~isempty(sol_qp)
         sol    = sol_qp;
@@ -409,7 +426,7 @@ elseif feasibility_flag == -2 && iter < obj.opts.max_iter
     obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_UNKNOWN;
 end
 
-stats.single_iterations = stats.single_iterations(1:iter-1);
+stats.single_iterations = stats.single_iterations(1:iter);
 
 stats.totalSolveTime    = solveTime;
 stats.solverBuildTime   = obj.display_para.solver_build_time;

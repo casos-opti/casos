@@ -51,6 +51,11 @@ if strcmpi(obj.opts.conVioCheck,'signed-distance')
 
     % get the largest one
     theta_x_k1 = full(max(0,max(all_violations)));
+    
+
+    if theta_x_k1 == 0
+        stop = 1;
+    end
 else
     % evalaute at current solution and samples
     g_val = full(obj.eval_constraintSamples(x_k1,obj.opts.userSample));
