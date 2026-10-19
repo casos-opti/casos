@@ -50,7 +50,7 @@ measBackStepTime = tic;
 SocTimeMeas      = [];
 SuffDecreaseTimeMeas = 0;
 
-counterLineserchSteps = 0;
+counterLinesearchSteps = 0;
 counterSoC            = 0;
 
 % just for first iteration
