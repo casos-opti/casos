@@ -6,6 +6,11 @@
 
 name: 'CasADi setup'
 description: 'Install and configure CasADi optimization framework for MATLAB'
+inputs:
+  CASADI_VERSION:
+    required: true
+    default: "3.7.2"
+
 runs:
   using: "composite"
   steps:
@@ -27,17 +32,18 @@ runs:
     # ============================================================
 
     # Download CasADi binary distribution for MATLAB on Linux platform
-    # Version: 3.6.5 (compatible with MATLAB 2018b and later)
-    - name: Download CasADi 3.6.5 for MATLAB (Linux)
+    - name: Download CasADi for MATLAB (Linux)
       shell: bash 
       run: |
-        echo "Downloading CasADi 3.6.5 for MATLAB (Linux)..."
+        echo "Downloading CasADi for MATLAB (Linux)..."
 
-        # Define download URLs and file names
-        CASADI_VERSION="3.6.5"
-        DOWNLOAD_URL="https://github.com/casadi/casadi/releases/download/${CASADI_VERSION}/casadi-${CASADI_VERSION}-linux64-matlab2018b.zip"
-        OUTPUT_ZIP="casadi-${CASADI_VERSION}.zip"
-        EXTRACT_DIR="casadi-${CASADI_VERSION}"
+        # Display the version
+        echo "CasADi version: ${{inputs.CASADI_VERSION}}"
+
+        # Set CasADi url for the version to be tested against
+        DOWNLOAD_URL="https://github.com/casadi/casadi/releases/download/${{inputs.CASADI_VERSION}}/casadi-${{inputs.CASADI_VERSION}}-linux64-matlab2018b.zip"
+        OUTPUT_ZIP="casadi-${{inputs.CASADI_VERSION}}.zip"
+        EXTRACT_DIR="casadi-${{inputs.CASADI_VERSION}}"
 
         # Download CasADi archive
         echo "Downloading from: ${DOWNLOAD_URL}"
@@ -51,7 +57,7 @@ runs:
         echo "Cleaning up temporary files..."
         rm -f "${OUTPUT_ZIP}"
 
-        echo "CasADi ${CASADI_VERSION} downloaded and extracted successfully"
+        echo "CasADi ${{inputs.CASADI_VERSION}} downloaded and extracted successfully"
 
     # ============================================================
     # VERIFICATION (for debugging)
@@ -68,11 +74,11 @@ runs:
         echo "----------------------------------------"
 
         # Check if directory exists and list contents
-        if [ -d "casadi-3.6.5" ]; then
-          ls -la casadi-3.6.5/
+        if [ -d "casadi-${{inputs.CASADI_VERSION}}" ]; then
+          ls -la casadi-${{inputs.CASADI_VERSION}}/
           echo ""
           echo "CasADi installation verified successfully"
-          echo "Found $(find casadi-3.6.5 -type f | wc -l) files"
+          echo "Found $(find casadi-${{inputs.CASADI_VERSION}} -type f | wc -l) files"
         else
           echo "ERROR: CasADi directory not found!"
           exit 1

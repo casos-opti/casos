@@ -111,9 +111,44 @@ jobs:
   # JOB 2: poly-tools
   # PURPOSE: Test polynomial operations by comparing against reference implementation
   # =============================================================================
-  poly-tools:
-    name: Core tests
+  get-casadi-releases:
     runs-on: ubuntu-latest
+    outputs: 
+      releases: ${{ steps.get-releases.outputs.releases }}  
+
+    steps: 
+      - name: Get CasADi releases from GitHub
+        id: get-releases
+        continue-on-error: true 
+        run: |
+          # Fetch 3 last releases from the CasADi repository
+          RELEASES=$(git ls-remote -t https://github.com/casadi/casadi \
+            | cut -f 2 \
+            | grep -xE 'refs/tags/[0-9]+\.[0-9]+\.[0-9]+' \
+            | sed 's|refs/tags/||' \
+            | sort -V \
+            | awk -F. '
+                { key = $1"."$2; latest[key] = $0 }
+                END { for (k in latest) print latest[k] }
+              ' \
+            | sort -V \
+            | tail -n 3 \
+            | jq -R . | jq -sc .)
+
+          # display the releases obtained
+          echo "All releases ${RELEASES}" 
+
+          # Set outputs for other jobs to consume
+          echo "releases=${RELEASES}" >> $GITHUB_OUTPUT
+  
+  poly-tools:
+    name: Core tests (casadi v${{ matrix.casadi-version }})
+    needs: get-casadi-releases
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Continue testing other versions even if one fails
+      matrix:
+        casadi-version: ${{ fromJSON(needs.get-casadi-releases.outputs.releases) }}
 
     permissions:
       checks: write
@@ -137,6 +172,7 @@ jobs:
         uses: ./.github/actions/CasADi-setup
         with:
           message: "Setup CasADi"
+          CASADI_VERSION: ${{ matrix.casadi-version }} 
 
       # STEP 4: Get reference values
       - name: Get reference values
