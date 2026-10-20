@@ -51,7 +51,7 @@ SocTimeMeas      = [];
 SuffDecreaseTimeMeas = 0;
 
 counterLinesearchCalls              = 0;
-counterSecondOrderCorrectionCalls   = 0;
+counterCorrectionCalls   = 0;
 
 % just for first iteration
 alpha_min = 0;
@@ -124,7 +124,7 @@ while alpha > alpha_min
 
         % invoke soc to avoid maratos effect, if necessary
         if ~filter_Acceptance && alpha == 1 && theta_x_k1 >= theta_xk && obj.opts.enable_SOC
-            counterSecondOrderCorrectionCalls = counterSecondOrderCorrectionCalls + 1;
+            counterCorrectionCalls = counterCorrectionCalls + 1;
             measSocTime = tic;
             % compute corrected search direction, compute new trial point and check for filter acceptance
             [x_k1,suffConSoC,f_type,amijo] = second_order_correction(obj,x_k,x_star,p0,Bk,args,filter,alpha,theta_xk,f_xk,dkl,L_k1,L_k,dual_k);
@@ -219,7 +219,7 @@ stats{iter}.timeStats.HessApproxTime         = HessApproxTimeMeas;
 stats{iter}.timeStats.totalBackstepTime      = totalBackstepTimeMeas;
 stats{iter}.timeStats.FilterAcceptTime       = FilterAcceptTimeMeas;
 stats{iter}.timeStats.SuffDecreaseTime       = SuffDecreaseTimeMeas;
-stats{iter}.counterSecondOrderCorrectionCalls                       = counterSecondOrderCorrectionCalls;
+stats{iter}.counterCorrectionCalls                       = counterCorrectionCalls;
 stats{iter}.counterLinesearchCalls             = counterLinesearchCalls ;
 
 if ~isempty(SocTimeMeas)
