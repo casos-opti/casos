@@ -24,7 +24,7 @@
 %
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [x_star_soc,dual_star_soc,skip_soc] = solve_Q_SDP_soc(obj,x_k,x_star,p0,Bk,args)
+function [x_star_soc,dual_star_soc,skip_soc] = solve_q_sdp_soc(obj,x_k,x_star,p0,Bk,args)
 
 import casos.package.UnifiedReturnStatus
 

@@ -19,7 +19,7 @@
 % Note: alpha_min can be zero!
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function alpha_min = compute_alpha_min(obj,x_k,dk,p0,theta_xk,filter)
+function alpha_min = compute_alpha_min(obj,x_k,dk,p0,theta_xk,linesearch_filter)
 
 % extract options from struct; for readability oc code
 s_theta     = obj.opts.filter_struct.s_theta ;
@@ -31,9 +31,9 @@ gamma_alpha     = obj.opts.filter_struct.gamma_alpha;
 
 delta           = obj.opts.filter_struct.delta;
 
-LangrangeFilter = obj.opts.filter_struct.LangrangeFilter;
+lagrange_filter = obj.opts.filter_struct.lagrange_filter;
 
-theta_min = min(filter(1,1),1)*obj.opts.filter_struct.theta_min;
+theta_min = min(linesearch_filter(1,1),1)*obj.opts.filter_struct.theta_min;
 
 % descent direction
 nabla_f_dir = full(obj.eval_gradCost(x_k,p0)*dk);

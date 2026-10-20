@@ -4,7 +4,7 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [sol_iter,sol_qp,feas_res_flag,stats,obj,filter,Bk] = do_single_iteration(obj, ...
+function [sol_iter,sol_qp,feas_res_flag,stats,obj,linesearch_filter,Bk] = do_single_iteration(obj, ...
     iter,...
     x_k,...
     dual_k,...
@@ -13,11 +13,11 @@ function [sol_iter,sol_qp,feas_res_flag,stats,obj,filter,Bk] = do_single_iterati
     Bk,...
     p0,...
     args, ...
-    filter, ...
+    linesearch_filter, ...
     stats)
 
 %% evaluate convex SOS problem and check feasibility
-[x_star,dual_star,sol_iter,sol_qp,feas_res_flag,stats] = solve_Q_SDP(obj,iter,x_k,p0,Bk,args,stats);
+[x_star,dual_star,sol_iter,sol_qp,feas_res_flag,stats] = solve_q_sdp(obj,iter,x_k,p0,Bk,args,stats);
 
 
 if feas_res_flag
@@ -30,7 +30,7 @@ alpha_max   = obj.opts.filter_struct.alpha_max;
 gamma_theta = obj.opts.filter_struct.gamma_theta ;
 gamma_phi   = obj.opts.filter_struct.gamma_phi ;
 
-LangrangeFilter = obj.opts.filter_struct.LangrangeFilter;
+lagrange_filter = obj.opts.filter_struct.lagrange_filter;
 
 
 alpha = alpha_max;
@@ -43,11 +43,11 @@ while true
     dkl  = (dual_star-dual_k);
 
     % check filter acceptance
-    [x_k1,theta_x_k1,f_x_k1 ,filter_Acceptance,sol_convio] = check_filter_acceptance(obj,filter,alpha,x_k,dual_k,dk,dkl,p0,args);
+    [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,constraint_violation] = check_filter_acceptance(obj,linesearch_filter,alpha,x_k,dual_k,dk,dkl,p0,args);
 
     dual_k1 = dual_k + alpha*(dual_star-dual_k);
 
-    if LangrangeFilter
+    if lagrange_filter
         L_k1= full(obj.L(x_k1,p0,dual_k1));
         L_k = full(obj.L(x_k,p0,dual_k));
     else
@@ -55,39 +55,39 @@ while true
         L_k  = [];
     end
 
-    if filter_Acceptance
+    if filter_acceptance
 
         % check sufficient decrease
-        [suffDecrease_flag,f_type,amijo,filter] = check_suffDecrease(obj,alpha,x_star,x_k,p0,theta_xk,theta_x_k1, f_x_k1,f_xk,L_k1,L_k,dual_k,filter);
+        [suff_decrease_flag,f_type,armijo,linesearch_filter] = check_suff_decrease(obj,alpha,x_star,x_k,p0,theta_xk,theta_x_k1, f_x_k1,f_xk,L_k1,L_k,dual_k,linesearch_filter);
 
-        if suffDecrease_flag
+        if suff_decrease_flag
             % accept and leave while loop
             break
         end
 
         % invoke soc to avoid maratos effect, if necessary
-        if ~suffDecrease_flag && alpha == 1  && theta_x_k1 >= theta_xk
+        if ~suff_decrease_flag && alpha == 1  && theta_x_k1 >= theta_xk
 
             % compute corrected search direction, compute new trial point and check for filter acceptance
-            [x_k1,suffDecrease_flag,f_type,amijo] = second_order_correction(obj,x_k,x_star,p0,Bk,args,filter,alpha,theta_xk,f_xk,dkl,L_k1,L_k,dual_k);
+            [x_k1,suff_decrease_flag,f_type,armijo] = second_order_correction(obj,x_k,x_star,p0,Bk,args,linesearch_filter,alpha,theta_xk,f_xk,dkl,L_k1,L_k,dual_k);
 
             % leave while loop if corrected step is acceptable to filter
-            if suffDecrease_flag
+            if suff_decrease_flag
                 break % means we found a solution with SOC; leave loop
             end
 
         end
 
 
-    else % not acceptable to filter
+    else % not acceptable to linesearch_filter
 
         % invoke soc to avoid maratos effect, if necessary
-        if ~filter_Acceptance && alpha == 1 && theta_x_k1 >= theta_xk
+        if ~filter_acceptance && alpha == 1 && theta_x_k1 >= theta_xk
 
             % compute corrected search direction, compute new trial point and check for filter acceptance
-            [x_k1,suffDecrease_flag,f_type,amijo] = second_order_correction(obj,x_k,x_star,p0,Bk,args,filter,alpha,theta_xk,f_xk,dkl,L_k1,L_k,dual_k);
+            [x_k1,suff_decrease_flag,f_type,armijo] = second_order_correction(obj,x_k,x_star,p0,Bk,args,linesearch_filter,alpha,theta_xk,f_xk,dkl,L_k1,L_k,dual_k);
 
-            if suffDecrease_flag
+            if suff_decrease_flag
                 break % means we found a solution with SOC; leave loop
             end
 
@@ -99,7 +99,7 @@ while true
     alpha = 1/2*alpha;
 
     % compute alpha_min
-    alpha_min = compute_alpha_min(obj,x_k,dk,p0,theta_xk,filter);
+    alpha_min = compute_alpha_min(obj,x_k,dk,p0,theta_xk,linesearch_filter);
 
     if alpha < alpha_min  || alpha <= eps
         % invoke feasibility restoration if step-length is below minimum
@@ -111,15 +111,15 @@ while true
 end % end of backtracking linesearch
 
 
-% only augment if new iterate is accepted and either f-type or amijo are not fulfilled
-if suffDecrease_flag && (~f_type || ~amijo)
+% only augment if new iterate is accepted and either f-type or armijo are not fulfilled
+if suff_decrease_flag && (~f_type || ~armijo)
 
-    if LangrangeFilter
+    if lagrange_filter
         % augment filter with a small margin
-        filter = [filter;[theta_xk*(1-gamma_theta), L_k - gamma_phi*theta_xk]];
+        linesearch_filter = [linesearch_filter;[theta_xk*(1-gamma_theta), L_k - gamma_phi*theta_xk]];
     else
         % augment filter with a small margin
-        filter = [filter;[theta_xk*(1-gamma_theta), f_xk - gamma_phi*theta_xk]];
+        linesearch_filter = [linesearch_filter;[theta_xk*(1-gamma_theta), f_xk - gamma_phi*theta_xk]];
     end
 
 end
@@ -132,11 +132,11 @@ sol_iter.theta_x_k1 = theta_x_k1;
 sol_iter.f_x_k1     = f_x_k1;
 sol_iter.alpha_k    = alpha;
 sol_iter.dual_qp    = dual_star;
-stats{iter}.constraint_violation = sol_convio;
+stats{iter}.constraint_violation = constraint_violation;
 
 % we only support BFGS because we have acutally a linear cost + a quadratic
 % term; other methods faild in the past
-Bk = damped_BFGS(obj,Bk,x_k,p0,sol_iter,iter);
+Bk = damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter);
 
 
 
