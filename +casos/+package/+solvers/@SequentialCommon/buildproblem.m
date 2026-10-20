@@ -6,7 +6,7 @@
 
 function buildproblem(obj,nlsos)
 % Build convex subprobems for sequential algorithms.
-buildTime_in = tic;
+t_build = tic;
 
 opts = obj.opts;
 
@@ -61,8 +61,12 @@ obj.sparsity_g  = obj.solver_convex.sparsity_g;
 obj.sparsity_gl = obj.solver_convex.sparsity_gl;
 obj.sparsity_gs = obj.solver_convex.sparsity_gs;
 
-if strcmpi(obj.opts.conVioCheck,'signed-distance')
-    %% constrained violation check via signed distance
+% basis of decision variables and parameter (needed in either branch below)
+basis_nlsos_x = poly2basis(nlsos.x);
+basis_nlsos_p = poly2basis(nlsos.p);
+
+if strcmpi(obj.opts.con_vio_check,'signed-distance')
+    %% constraint violation check via signed distance
     % sparsity patterns of nonlinear constraints
 
     % get cone dimensions
@@ -81,11 +85,8 @@ if strcmpi(obj.opts.conVioCheck,'signed-distance')
     lb = casadi.SX.sym('lb', nnz_lin, 1);
 
     % create function to evaluate the violation of the linear cone 
-    obj.linvio = casadi.Function('linvio', {poly2basis(nlsos.x), poly2basis(nlsos.p), lb, ub}, {[coordinates_lin-ub; lb-coordinates_lin]});
+    obj.linvio = casadi.Function('linvio', {basis_nlsos_x, basis_nlsos_p, lb, ub}, {[coordinates_lin-ub; lb-coordinates_lin]});
 
-    % for idx = 1:length(nlsos.g)
-    %     I(idx) = ~is_linear(nlsos.g(idx),nlsos.x);
-    % end
     % get gram half-basis for nonlinear constraints
     [~,~,z] = grambasis(nlsos.g,I);
 
@@ -95,16 +96,16 @@ if strcmpi(obj.opts.conVioCheck,'signed-distance')
     r  = casos.PS.sym('r',sum(I));
     s0 = casos.PD(base_s0);
 
-    sos_conVio = [];
+    sos_con_vio = [];
     % decision variables
-    sos_conVio.x = r;
+    sos_con_vio.x = r;
     % cost function
-    sos_conVio.f = sum(r);
+    sos_con_vio.f = sum(r);
     % constraints
-    sos_conVio.g = nlsos.g(I) + r.*s0;
+    sos_con_vio.g = nlsos.g(I) + r.*s0;
     % parameters to subproblem
     % * parameters to nonlinear problem, current (nonlinear) solution
-    sos_conVio.p = [nlsos.p; nlsos.x];
+    sos_con_vio.p = [nlsos.p; nlsos.x];
 
     % SOS options
     sosopt               = opts.sossol_options;
@@ -116,21 +117,21 @@ if strcmpi(obj.opts.conVioCheck,'signed-distance')
     sosopt.error_on_fail = true;
 
     % initialize convex SOS solver
-    obj.solver_conVio = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_conVio,sosopt);
+    obj.solver_con_vio = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_con_vio,sosopt);
 else
     % evaluate constraints on sample points
     X  = casadi.SX.sym('x',nlsos.g.nvars,1);
     G = subs(nlsos.g, nlsos.g.indeterminates, X);
 
-    obj.eval_constraintSamples = casadi.Function('g', {poly2basis(nlsos.x) X}, {casadi.SX(G)});
+    obj.eval_constraint_samples = casadi.Function('g', {basis_nlsos_x, X}, {casadi.SX(G)});
 end
 
 %% Second-order correction (soc)
-if obj.opts.enable_SOC
+if obj.opts.enable_soc
     % parameter of current qp solution
     x_star_par   = casos.PS.sym('x_star',base_x);
     % constraint function to be evaluated at xk+d
-    conFun       = casos.Function('f',{nlsos.x, nlsos.p},{nlsos.g});
+    con_fun       = casos.Function('f',{nlsos.x, nlsos.p},{nlsos.g});
 
     sos_soc = [];
     % convex decision variables
@@ -141,8 +142,7 @@ if obj.opts.enable_SOC
     sos_soc.f = (1/2)*dot2(Hf,d,d) + dot(Df,d);
     % augmented linear constraints (see Nocedal p.544)
     dk        = x_star_par - nlsos.x ;
-    % actually xk cancelles out; just for readability
-    sos_soc.g = dot(Dg,d) + conFun(nlsos.x + dk,nlsos.p) - dot(Dg, dk);
+    sos_soc.g = dot(Dg,d) + con_fun(x_star_par,nlsos.p) - dot(Dg, dk);
     % parameters to subproblem
     % * parameters to nonlinear problem, current (nonlinear) solution, Hessian,
     % solution QP
@@ -166,23 +166,23 @@ end
 lam_gs    = casos.PS.sym('lam_gs', obj.sparsity_g);
 x_k1      = casos.PS.sym('x_k1',base_x);
 
-Lagrangian = nlsos.f + dot(lam_gs,nlsos.g);
+lagrangian = nlsos.f + dot(lam_gs,nlsos.g);
 
-basis_nlsos_x = poly2basis(nlsos.x);
-basis_xk1     = poly2basis(x_k1);
-basis_nlsos_p = poly2basis(nlsos.p);
-basis_lam_gs  = poly2basis(lam_gs);
+basis_xk1    = poly2basis(x_k1);
+basis_lam_gs = poly2basis(lam_gs);
 
 % Langrangian casos function for evaluation
-obj.eval_L = casos.Function('L',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, {Lagrangian });
-
-dLdx0 = op2basis(jacobian(Lagrangian,nlsos.x))';
+obj.eval_L = casos.Function('L',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, {lagrangian });
 
 % Hessian of Langrangian; in case we use BFGS, we do not have to explictly
-% compute the Hessian
+% compute the Hessian. The hessian call also returns the gradient of the
+% Lagrangian, hence it is projected and differentiated only once.
 if ~strcmpi(obj.opts.hessian_approx,'BFGS')
-    L_xx         = op2basis(hessian(Lagrangian,nlsos.x));
+    % current work around, because poly. hessian does not output jacobian
+    [L_xx, dLdx0] = hessian(poly2basis(lagrangian), basis_nlsos_x);
     obj.eval_Hessian = casos.Function('H',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { L_xx });
+else
+    dLdx0 = jacobian(poly2basis(lagrangian), basis_nlsos_x)';
 end
 % search direction
 obj.eval_s = casos.Function('s',{basis_nlsos_x,basis_xk1,basis_nlsos_p}, { poly2basis( x_k1 - nlsos.x)});
@@ -206,7 +206,7 @@ B     = casadi.MX.sym('B',[size(B,1),size(B,1)]);
 obj.eval_r = casos.Function('f',{B,theta,y,s}, {theta*y+(1-theta)*B*s});
 
 % B = B + (r*r')/(s'*r) - (B*s*s'*B)/(s'*B*s)
-obj.damped_BFGS =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
+obj.damped_bfgs =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
 
 %% evaluation functions
 % nonlinear cost function
@@ -215,21 +215,21 @@ obj.eval_cost      = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { full(nl
 obj.eval_gradCost  = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { op2basis( Df ) });
 % norm gradient langrangian
 obj.eval_gradLag =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dLdx0,inf ) });
-obj.eval_gradLag2  =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dot(lam_gs,nlsos.g),inf) });
+obj.eval_gradLag_inf_norm  =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dot(lam_gs,nlsos.g),inf) });
 obj.eval_constraint = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, {poly2basis(nlsos.g)});
 
 %% get parameter that are needed for initilization
 obj.init_para.no_dual_var   = obj.sparsity_g.nnz;
 obj.init_para.size_B        = nnz(base_x);
 
-if strcmpi(obj.opts.conVioCheck,'signed-distance')
-    obj.init_para.conVio.no_con = length(sos_conVio.g);
+if strcmpi(obj.opts.con_vio_check,'signed-distance')
+    obj.init_para.con_vio.no_con = length(sos_con_vio.g);
 end
 
 %% get params for display output (problem size etc)
 obj.display_para.no_decVar         = obj.solver_convex.sparsity_x.nnz;
 obj.display_para.no_sosCon         = length(nlsos.g);
 obj.display_para.solver            = obj.opts.sossol;
-obj.display_para.solver_build_time = toc(buildTime_in);
+obj.display_para.solver_build_time = toc(t_build);
 
 end
