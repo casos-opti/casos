@@ -53,10 +53,10 @@ methods (Access=protected)
         % disable verbosity by default
         if ~isfield(opts,'verbose'), opts.verbose = 0; end
         
+        % remove P if all entries are sparse
         % see: https://www.cvxgrp.org/scs/api/matrices.html 
-        if nnz(data.P) == 0
-           data = rmfield(data, 'P');
-        end
+        if nnz(data.P) == 0, data = rmfield(data, 'P'); end
+        
         % call SCS
         [x,y,s,obj.solver_stats] = scs(data,K,opts);
 
