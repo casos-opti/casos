@@ -61,19 +61,30 @@ stats.options = obj.opts;
 % initialze dual variables
 dual_k = zeros(obj.init_para.no_dual_var,1);
 
-if strcmpi(obj.opts.hessian_init,'identity')
-    % initialize BFGS-matrix = identity x scaling
-    Bk =  eye(obj.init_para.size_B)*obj.opts.scale_bfgs0;
-
-elseif strcmpi(obj.opts.hessian_init,'analytical')
-    % initialize Hessian approximation with regularization
-    H = full(obj.eval_Hessian(x_k,p0,dual_k));
-
-    Bk = casos.package.solvers.SequentialCommon.regularize_hessian(H);
-
+% select hessian approximation method
+% Note: If BFGS is used we do not pre-compute the Hessian to save build
+% time! Hence, we use the identy matrix and potentially user scaling
+if strcmpi(obj.opts.hessian_approx,'BFGS')
+        Bk =  eye(obj.init_para.size_B)*obj.opts.scale_bfgs0;
 else
-    error('Unknown option "%s" for Hessian initialization.',obj.opts.hessian_init)
+    
+    % if other than BFGS are used we either use identity with scaling or
+    % pre-computed hessian and regularize it
+    if strcmpi(obj.opts.hessian_init,'identity')
+        % initialize BFGS-matrix = identity x scaling
+        Bk =  eye(obj.init_para.size_B)*obj.opts.scale_bfgs0;
+    
+    elseif strcmpi(obj.opts.hessian_init,'analytical')
+        % initialize Hessian approximation with regularization
+        H = full(obj.eval_Hessian(x_k,p0,dual_k));
+    
+        Bk = casos.package.solvers.SequentialCommon.regularize_hessian(H);
+    
+    else
+        error('Unknown option "%s" for Hessian initialization.',obj.opts.hessian_init)
+    end
 end
+
 
 if strcmpi(obj.opts.con_vio_check,'signed-distance')
     % initialize filter and first iterate
@@ -146,11 +157,15 @@ while iter <= obj.opts.max_iter
     
     % store current iterate: cost, max. constraint violation, current step
     % length and first-order optimality condition
-    stats.single_iterations{iter}.cost       = f_x_k;
+    stats.single_iterations{iter}.cost         = f_x_k;
     stats.single_iterations{iter}.max_con_vio  = theta_x_k;
-    stats.single_iterations{iter}.step_length = alpha_k;
-    stats.single_iterations{iter}.d_ldx       = full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k))));
-
+    stats.single_iterations{iter}.step_length  = alpha_k;
+    stats.single_iterations{iter}.d_ldx        = full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k))));
+   
+    % initialize to ensure fields exist (are overwritten if called below)
+    stats.single_iterations{iter}.counter_restoration_calls = counter_restoration_calls; 
+    stats.single_iterations{iter}.counter_correction_calls                    = 0;
+    stats.single_iterations{iter}.counter_linesearch_calls                    = 0;
 
     %% check convergence (first-order optimality)
     if full(obj.eval_gradLag(x_k,p0,dual_k))  <= full( (obj.opts.tolerance_opt*max(1,abs(f_x_k)) + obj.eval_gradLag_inf_norm(x_k,p0,dual_k))/delta_xi_double )  ... % scaled optimality
