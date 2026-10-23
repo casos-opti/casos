@@ -137,7 +137,7 @@ jobs:
 
           # Fallback if empty
           if [ -z "$RELEASES" ] || [ "$RELEASES" = "null" ]; then
-            RELEASES='["3.6.5","3.6.4","3.6.3"]'
+            RELEASES='["3.6.7","3.7.2","3.8.1"]'
           fi
 
           # display the releases obtained
