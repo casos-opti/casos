@@ -53,8 +53,9 @@ x_k = args{1};
 % parameter from nonlinear problem
 p0   = args{2};
 
-% initialize iteration statistics struct
-stats.single_iterations = cell(1,obj.opts.max_iter);
+% initialize iteration statistics struct; + 1 because we add also the
+% zeroth iteration/initial step
+stats.single_iterations = cell(1,obj.opts.max_iter+1);
 
 stats.options = obj.opts;
 
@@ -116,7 +117,7 @@ else
     end
 end
 
-% evalaute cost function of nonlinear problem
+% evaluate cost function of nonlinear problem
 f_x_k     = full(obj.eval_cost(x_k,p0));
 
 % add some boundary to it
@@ -138,6 +139,34 @@ feasibility_flag          = 1;
 % counter how often feasibility restoration is called
 counter_restoration_calls = 0;
 
+
+
+% first entry is the initialization step i.e. at initialization 
+% no line search
+stats.single_iterations{1}.counter_correction_calls        = 0;
+stats.single_iterations{1}.counter_linesearch_calls        = 0;
+
+% in case of signed-distance we provide the statistics of the underlying
+% SDP and to find out which constraint(s) might be the blocking point
+if strcmpi(obj.opts.con_vio_check,'signed-distance')
+
+    stats.single_iterations{1}.sdp_sol                         = obj.solver_con_vio.get_stats;
+    stats.single_iterations{1}.constraint_violation            = [sol_con_vio{1}; lin_violation];
+
+else
+    stats.single_iterations{1}.sdp_sol                         = [];
+    stats.single_iterations{1}.constraint_violation            = [];
+end
+
+stats.single_iterations{1}.time_stats.main_sdp_time        = 0;
+stats.single_iterations{1}.time_stats.hess_approx_time     = 0;
+stats.single_iterations{1}.time_stats.total_backstep_time  = 0;
+stats.single_iterations{1}.time_stats.filter_accept_time   = 0;
+stats.single_iterations{1}.time_stats.suff_decrease_time   = 0;
+stats.single_iterations{1}.time_stats.soc_time             = 0;
+stats.single_iterations{1}.time_stats.feas_res_time        = 0;
+
+
 % end of time measurement for initialization
 stats.init_time = toc(t_init);
 
@@ -157,15 +186,28 @@ while iter <= obj.opts.max_iter
     
     % store current iterate: cost, max. constraint violation, current step
     % length and first-order optimality condition
+    stats.single_iterations{iter}.iter         = iter-1;
     stats.single_iterations{iter}.cost         = f_x_k;
     stats.single_iterations{iter}.max_con_vio  = theta_x_k;
     stats.single_iterations{iter}.step_length  = alpha_k;
     stats.single_iterations{iter}.d_ldx        = full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k))));
    
-    % initialize to ensure fields exist (are overwritten if called below)
+    % store counter of current iterate
     stats.single_iterations{iter}.counter_restoration_calls = counter_restoration_calls; 
-    stats.single_iterations{iter}.counter_correction_calls                    = 0;
-    stats.single_iterations{iter}.counter_linesearch_calls                    = 0;
+
+    % initialize work statistics of the NEXT entry
+    stats.single_iterations{iter+1}.counter_correction_calls        = 0;
+    stats.single_iterations{iter+1}.counter_linesearch_calls        = 0;
+    stats.single_iterations{iter+1}.sdp_sol                         = [];
+    stats.single_iterations{iter+1}.constraint_violation            = [];
+    stats.single_iterations{iter+1}.time_stats.main_sdp_time        = 0;
+    stats.single_iterations{iter+1}.time_stats.hess_approx_time     = 0;
+    stats.single_iterations{iter+1}.time_stats.total_backstep_time  = 0;
+    stats.single_iterations{iter+1}.time_stats.filter_accept_time   = 0;
+    stats.single_iterations{iter+1}.time_stats.suff_decrease_time   = 0;
+    stats.single_iterations{iter+1}.time_stats.soc_time             = 0;
+    stats.single_iterations{iter+1}.time_stats.feas_res_time        = 0;
+
 
     %% check convergence (first-order optimality)
     if full(obj.eval_gradLag(x_k,p0,dual_k))  <= full( (obj.opts.tolerance_opt*max(1,abs(f_x_k)) + obj.eval_gradLag_inf_norm(x_k,p0,dual_k))/delta_xi_double )  ... % scaled optimality
@@ -213,9 +255,10 @@ while iter <= obj.opts.max_iter
 
     feasibility_flag = 0;
 
-    % compute solution of current iterate: solve Q-SDP, perform linesearch and update BFGS
+    % perform linesearch 
+    % Note: Work statistics are written to entry iter+1, i.e. the entry of the iterate this step produces
     [sol_iter,sol_qp,feas_res_flag,stats.single_iterations,obj,linesearch_filter,Bk] = do_single_iteration(obj, ...
-                                                                                                iter,...
+                                                                                                iter+1,...
                                                                                                 x_k,...
                                                                                                 dual_k,...
                                                                                                 theta_x_k,...
@@ -227,7 +270,7 @@ while iter <= obj.opts.max_iter
                                                                                                 stats.single_iterations);
 
     
-    stats.single_iterations{iter}.time_stats.feas_res_time = 0;
+    stats.single_iterations{iter+1}.time_stats.feas_res_time = 0;
 
     % Invoke feasibility restoration if necessary
     if feas_res_flag >= 1 && ...                   % restoration requested
@@ -243,7 +286,7 @@ while iter <= obj.opts.max_iter
         % shall be avoided in the future
         linesearch_filter = [linesearch_filter;[theta_x_k*(1-gamma_theta), f_x_k - gamma_phi*theta_x_k]];
 
-        time_stats_backup = stats.single_iterations{iter}.time_stats;
+        time_stats_backup = stats.single_iterations{iter+1}.time_stats;
         t_feas_res = tic;
         % feasibility restoration phase
         [sol_iter,sol_qp_feas,linesearch_filter,feasibility_flag,stats.single_iterations] = obj.feas_res_solver.eval_extended(linesearch_filter,...
@@ -252,10 +295,10 @@ while iter <= obj.opts.max_iter
                                                                                                                                 p0,...
                                                                                                                                 obj,...
                                                                                                                                 stats.single_iterations,...
-                                                                                                                                iter);
+                                                                                                                                iter+1);
 
-        stats.single_iterations{iter}.time_stats = time_stats_backup;
-        stats.single_iterations{iter}.time_stats.feas_res_time = toc(t_feas_res);
+        stats.single_iterations{iter+1}.time_stats = time_stats_backup;
+        stats.single_iterations{iter+1}.time_stats.feas_res_time = toc(t_feas_res);
 
 
         if feasibility_flag >=1
@@ -358,6 +401,18 @@ while iter <= obj.opts.max_iter
 
 end % end of while loop
 
+% maximum number of iterations exhausted: store the last iterate (index
+% max_iter+1 corresponds to iteration max_iter); its work statistics are
+% already stored by the last loop pass
+if iter > obj.opts.max_iter
+    stats.single_iterations{iter}.iter         = iter-1;
+    stats.single_iterations{iter}.cost         = f_x_k;
+    stats.single_iterations{iter}.max_con_vio  = theta_x_k;
+    stats.single_iterations{iter}.step_length  = alpha_k;
+    stats.single_iterations{iter}.d_ldx        = full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k))));
+    stats.single_iterations{iter}.counter_restoration_calls = counter_restoration_calls;
+end
+
 % final display output for user
 if iter >= obj.opts.max_iter
 
@@ -405,7 +460,7 @@ if feasibility_flag == 0 && iter < obj.opts.max_iter
 
     % print last iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
-        iter, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ) )   );
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ) )   );
 
     printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
     printf(obj.log,'debug','Solution status: Problem infeasible.\n');
@@ -422,7 +477,7 @@ elseif feasibility_flag == -1 && iter < obj.opts.max_iter
 
     % print last iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
-        iter, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ) )   );
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ) )   );
 
 
     printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
