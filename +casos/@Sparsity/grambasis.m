@@ -123,11 +123,12 @@ if ~isempty(K) && prune
         loc2_saver = loc2 | loc2_saver;
 
         % remove column (i,:) and row at (:,i)
-        idx(loc2,:) = false;    idx(:,loc2) = false;
+        idx(loc2,:) = false;    
+        idx(:,loc2) = false;
     end
 
     % save removed monomials from basis (for debug)
-    if nargout == 6
+    if nargout > 5
         Lz_del = sparse(row_idx(loc2_saver), col_idx(loc2_saver), 1, size(Lz,1), size(Lz,2));
         [i,j] = find(Lz_del');
         coeffs = casadi.Sparsity.triplet(size(Lz_del,2),lp,i-1,j-1);
@@ -144,9 +145,18 @@ if ~isempty(K) && prune
     % update the mappings Mp and Md 
     Mp = Mp*diag(idx(idx_static));
     Md = Md*diag(idx(idx_static));
-    spar = ~any(Mp,1);
-    Mp(:, spar) = [];
-    Md(:, spar) = [];
+    % remove empty columns 
+    empty_cols = ~any(Mp,1);
+    Mp(:, empty_cols) = [];
+    Md(:, empty_cols) = [];
+    % remove empty rows
+    empty_rows = ~any(Mp,2);
+    Mp(empty_rows, :) = [];
+    Md(empty_rows, :) = [];
+    % update output sparsity 
+    [i, j, degmat] = Z.get_tuplet;
+    keep_mono = ~empty_rows;
+    Z = casos.Sparsity.tuplet(lp, 1, i(keep_mono), j(keep_mono), Z.indets, degmat(keep_mono,:));
 
     % update the cone sizes
     K = full(sum(Lz,2));
