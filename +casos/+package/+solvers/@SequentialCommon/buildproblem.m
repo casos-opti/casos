@@ -216,6 +216,28 @@ obj.eval_gradCost  = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { op2basi
 % norm gradient langrangian
 obj.eval_gradLag =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dLdx0,inf ) });
 obj.eval_gradLag_inf_norm  =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dot(lam_gs,nlsos.g),inf) });
+
+% step norms of primal and dual iterates
+xk_step  = casadi.SX.sym('x_k',nnz(base_x),1);
+xk1_step = casadi.SX.sym('x_k1',nnz(base_x),1);
+dk_step  = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
+dk1_step = casadi.SX.sym('dual_k1',obj.sparsity_g.nnz,1);
+obj.eval_step_norms = casadi.Function('f',{xk_step,xk1_step,dk_step,dk1_step}, ...
+    {norm(xk_step,inf), norm(xk1_step-xk_step,inf), norm(dk_step,inf), norm(dk1_step-dk_step,inf)});
+
+% thresholds of the first-order optimality termination checks
+f_val   = casadi.SX.sym('f');
+gln_val = casadi.SX.sym('gln');
+gl_val  = casadi.SX.sym('gl');
+dxi_val = casadi.SX.sym('dxi');
+tol_val = casadi.SX.sym('tol');
+obj.eval_termination = casadi.Function('f',{f_val,gln_val,gl_val,dxi_val,tol_val}, ...
+    {(tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, (10*tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, tol_val*fmax(1,gl_val)});
+
+% directional derivative of the cost along the search direction
+x_star_dir = casos.PS.sym('x_star',base_x);
+obj.eval_nabla_f_dir = casos.Function('f',{basis_nlsos_x, poly2basis(x_star_dir), basis_nlsos_p}, { dot(Df, x_star_dir - nlsos.x) });
+
 obj.eval_constraint = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, {poly2basis(nlsos.g)});
 
 %% get parameter that are needed for initilization

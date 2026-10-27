@@ -126,8 +126,9 @@ linesearch_filter = [max(1,theta_x_k)*10, inf];
 iter = 1;
 
 % just for display output in first iteration
-delta_xi_double   = norm(full( casadi.DM(x_k)),inf);
-delta_dual_double = norm(full( (dual_k)),inf);
+[delta_xi_double,~,delta_dual_double,~] = obj.eval_step_norms(x_k,x_k,dual_k,dual_k);
+delta_xi_double   = full(delta_xi_double);
+delta_dual_double = full(delta_dual_double);
 alpha_k           = 1;
 
 % counter until solution is marked almost optimal
@@ -180,9 +181,16 @@ while iter <= obj.opts.max_iter
         printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
     end
 
+    % evaluate first-order optimality and termination thresholds once per iterate
+    gradLag_k = full(obj.eval_gradLag(x_k,p0,dual_k));
+    [opt_thres,opt_thres_10x,opt_thres_self] = obj.eval_termination(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, obj.opts.tolerance_opt);
+    opt_thres      = full(opt_thres);
+    opt_thres_10x  = full(opt_thres_10x);
+    opt_thres_self = full(opt_thres_self);
+
     % display output current iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
-        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ))   );
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , gradLag_k   );
     
     % store current iterate: cost, max. constraint violation, current step
     % length and first-order optimality condition
@@ -190,7 +198,7 @@ while iter <= obj.opts.max_iter
     stats.single_iterations{iter}.cost         = f_x_k;
     stats.single_iterations{iter}.max_con_vio  = theta_x_k;
     stats.single_iterations{iter}.step_length  = alpha_k;
-    stats.single_iterations{iter}.d_ldx        = full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k))));
+    stats.single_iterations{iter}.d_ldx        = gradLag_k;
    
     % store counter of current iterate
     stats.single_iterations{iter}.counter_restoration_calls = counter_restoration_calls; 
@@ -210,7 +218,7 @@ while iter <= obj.opts.max_iter
 
 
     %% check convergence (first-order optimality)
-    if full(obj.eval_gradLag(x_k,p0,dual_k))  <= full( (obj.opts.tolerance_opt*max(1,abs(f_x_k)) + obj.eval_gradLag_inf_norm(x_k,p0,dual_k))/delta_xi_double )  ... % scaled optimality
+    if gradLag_k <= opt_thres  ... % scaled optimality
             && theta_x_k <= obj.opts.tolerance_con && feasibility_flag == 0                                                                                     % constraint violation
 
         printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
@@ -227,7 +235,7 @@ while iter <= obj.opts.max_iter
     end
 
     % check if current iterate is solved to an acceptable level
-    if full(obj.eval_gradLag(x_k,p0,dual_k))  <= full((10*obj.opts.tolerance_opt*max(1,abs(f_x_k)) + obj.eval_gradLag_inf_norm(x_k,p0,dual_k))/delta_xi_double)  ... % scaled optimality ...
+    if gradLag_k <= opt_thres_10x  ... % scaled optimality ...
             && theta_x_k <= obj.opts.tolerance_con
 
         % increase counter
@@ -304,8 +312,9 @@ while iter <= obj.opts.max_iter
         if feasibility_flag >=1
 
             % continue from restored solution
-            delta_xi_double   = norm(full( sol_iter.x_k1 - x_k) ,inf);
-            delta_dual_double = norm(full( dual_k ),inf);
+            [~,delta_xi_double,delta_dual_double,~] = obj.eval_step_norms(x_k,sol_iter.x_k1,dual_k,dual_k);
+            delta_xi_double   = full(delta_xi_double);
+            delta_dual_double = full(delta_dual_double);
 
             x_k                 = sol_iter.x_k1;
             sol_iter.dual_k1    = dual_k;            % we keep dual soultion from previous iterate
@@ -340,7 +349,7 @@ while iter <= obj.opts.max_iter
         end
 
         % just a final check
-        if full(obj.eval_gradLag(x_k,p0,dual_k))  <= obj.opts.tolerance_opt*max(1,full(obj.eval_gradLag(x_k,p0,dual_k))) ...
+        if gradLag_k <= opt_thres_self ...
                 && theta_x_k <= obj.opts.tolerance_con
 
             printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
@@ -364,8 +373,9 @@ while iter <= obj.opts.max_iter
     else % continue with normal iteration
 
         % for display output
-        delta_xi_double   = norm(full( sol_iter.x_k1 - x_k) ,inf);
-        delta_dual_double = norm(full( sol_iter.dual_k1 - dual_k ),inf);
+        [~,delta_xi_double,~,delta_dual_double] = obj.eval_step_norms(x_k,sol_iter.x_k1,dual_k,sol_iter.dual_k1);
+        delta_xi_double   = full(delta_xi_double);
+        delta_dual_double = full(delta_dual_double);
 
         % set values for next iterate
         x_k       = sol_iter.x_k1;
@@ -401,6 +411,11 @@ while iter <= obj.opts.max_iter
 
 end % end of while loop
 
+% evaluate first-order optimality and termination threshold once for the final iterate
+gradLag_k = full(obj.eval_gradLag(x_k,p0,dual_k));
+[~,~,opt_thres_self] = obj.eval_termination(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, obj.opts.tolerance_opt);
+opt_thres_self = full(opt_thres_self);
+
 % maximum number of iterations exhausted: store the last iterate (index
 % max_iter+1 corresponds to iteration max_iter); its work statistics are
 % already stored by the last loop pass
@@ -409,7 +424,7 @@ if iter > obj.opts.max_iter
     stats.single_iterations{iter}.cost         = f_x_k;
     stats.single_iterations{iter}.max_con_vio  = theta_x_k;
     stats.single_iterations{iter}.step_length  = alpha_k;
-    stats.single_iterations{iter}.d_ldx        = full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k))));
+    stats.single_iterations{iter}.d_ldx        = gradLag_k;
     stats.single_iterations{iter}.counter_restoration_calls = counter_restoration_calls;
 end
 
@@ -424,10 +439,10 @@ if iter >= obj.opts.max_iter
 
     % display output current iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
-        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ))   );
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , gradLag_k   );
 
 
-    if full(obj.eval_gradLag(x_k,p0,dual_k))  <= obj.opts.tolerance_opt*max(1,full(obj.eval_gradLag(x_k,p0,dual_k))) ...
+    if gradLag_k <= opt_thres_self ...
             && theta_x_k <= obj.opts.tolerance_con && feasibility_flag == 0
 
         printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
@@ -460,7 +475,7 @@ if feasibility_flag == 0 && iter < obj.opts.max_iter
 
     % print last iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
-        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ) )   );
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , gradLag_k   );
 
     printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
     printf(obj.log,'debug','Solution status: Problem infeasible.\n');
@@ -477,7 +492,7 @@ elseif feasibility_flag == -1 && iter < obj.opts.max_iter
 
     % print last iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
-        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , full(casadi.DM( full(obj.eval_gradLag(x_k,p0,dual_k)) ) )   );
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , gradLag_k   );
 
 
     printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');

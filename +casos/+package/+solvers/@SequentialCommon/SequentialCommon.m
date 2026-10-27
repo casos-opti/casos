@@ -45,6 +45,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         % linesearch
         eval_gradCost;
         eval_constraint_samples;
+        eval_nabla_f_dir;
 
         % damped BFGS
         damped_bfgs;
@@ -58,6 +59,8 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         eval_gradLag;
         eval_gradLag_inf_norm;
         eval_Hessian;
+        eval_step_norms;
+        eval_termination;
 
         % parameters
         init_para;

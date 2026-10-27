@@ -23,12 +23,18 @@ function Bk = damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter)
 s_val = full( obj.eval_s(x_k,sol_iter.x_k1,p0) );
 y_val = full( obj.eval_y(x_k,sol_iter.x_k1,p0,sol_iter.dual_k1) );
 
+s_dm = casadi.DM(s_val);
+y_dm = casadi.DM(y_val);
+B_dm = casadi.DM(Bk);
 
 % Powell damping
-if s_val'*y_val >= 0.2*s_val'*Bk*s_val
+sy  = full(s_dm'*y_dm);
+sBs = full(s_dm'*B_dm*s_dm);
+
+if sy >= 0.2*sBs
     theta = 1;
 else
-    theta = (0.8*s_val'*Bk*s_val)/(s_val'*Bk*s_val-s_val'*y_val);
+    theta = (0.8*sBs)/(sBs-sy);
 end
 
 r_val = full( obj.eval_r(Bk,theta,y_val,s_val) );
@@ -45,12 +51,22 @@ if bk_nonsym > eps
 end
 
 % check if Hessian is PD, if not apply perturbation
-[~,chol_flag] = chol(Bk);
+pd = true;
+try
+    dE = full(ldl(casadi.DM(Bk)));
+    if min(dE) <= 0
+        pd = false;
+    end
+catch
+    pd = false;
+end
 
-if chol_flag
-    dE=abs(eig(Bk,'nobalance'));
-    pert=(min(dE)+2*eps*max(dE))/(1-2*eps);
-    Bk=Bk + pert*eye(length(Bk));
+if ~pd
+    h_diag = diag(Bk);
+    row_sum = sum(abs(Bk),2);
+    sigma = min(h_diag - (row_sum - abs(h_diag)));
+    pert = (-sigma + 2*eps*max(abs(h_diag)))/(1-2*eps);
+    Bk = Bk + pert*eye(length(Bk));
 end
 
 

@@ -93,7 +93,8 @@ while alpha > alpha_min
     % heuristic: there might be blocking entries in the filter:
     % check first-order optimality conditions to potentially aboard
     % linesearch early as possible if we are "optimal"
-    if full(obj.eval_gradLag(x_k1,p0,dual_k1))  <= obj.opts.tolerance_opt*max(1,full(obj.eval_gradLag(x_k1,p0,dual_k1))) ...
+    gradLag_k1 = full(obj.eval_gradLag(x_k1,p0,dual_k1));
+    if gradLag_k1 <= obj.opts.tolerance_opt*max(1,gradLag_k1) ...
                                                     && theta_x_k1 <= obj.opts.tolerance_con
         feas_res_flag = 0;
         break
@@ -199,7 +200,7 @@ while alpha > alpha_min
     alpha = 1/2*alpha;
 
     % compute alpha_min
-    alpha_min = compute_alpha_min(obj,x_k,dk,p0,theta_xk,linesearch_filter);
+    alpha_min = compute_alpha_min(obj,x_k,x_star,p0,theta_xk,linesearch_filter);
 
     % if alpha < alpha_min  % just avoid very small step lengths
     %     % invoke feasibility restoration if step-length is below minimum
@@ -260,10 +261,15 @@ elseif strcmpi(obj.opts.hessian_approx,'regularization')
 elseif strcmpi(obj.opts.hessian_approx,'mirroring')
     % Verschueren
     H = full(obj.eval_Hessian(x_k1,p0,dual_k1));
-    [L,D] = ldl(H);
-
-    D(D<0) = 1e-6;
-    Bk = L*abs(D)*L';
+    try
+        [Dd,LT] = ldl(casadi.DM(H));
+        d = full(Dd);
+        d(d<0) = 1e-6;
+        L = casadi.DM.eye(length(d)) + LT';
+        Bk = full(L*abs(casadi.DM(diag(d)))*L');
+    catch
+        Bk = casos.package.solvers.SequentialCommon.hessian_levenberg(H);
+    end
 
 else
     error('Unknown option "%s" for Hessian approximation.',obj.opts.hessian_approx)

@@ -99,7 +99,7 @@ while true
     alpha = 1/2*alpha;
 
     % compute alpha_min
-    alpha_min = compute_alpha_min(obj,x_k,dk,p0,theta_xk,linesearch_filter);
+    alpha_min = compute_alpha_min(obj,x_k,x_star,p0,theta_xk,linesearch_filter);
 
     if alpha < alpha_min  || alpha <= eps
         % invoke feasibility restoration if step-length is below minimum

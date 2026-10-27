@@ -35,14 +35,14 @@ lambda = diag(D);
 epsilon = 1e-6;
 
 % use Frobenius norm of current approximation
-tau = max(epsilon * norm(H, 'fro'),epsilon);
+tau = max(epsilon * sqrt(sum(H(:).^2)),epsilon);
 
 % Regularize eigenvalues: replace negative or small values with tau
 lambda_reg = max(lambda, tau);
 
 % Reconstruct the regularized Hessian
 D_reg = diag(lambda_reg); % Create the diagonal matrix of regularized eigenvalues
-H_reg = Q * D_reg * Q';   % Reconstruct the Hessian using eigenvectors and regularized eigenvalues
+H_reg = full(casadi.DM(Q) * casadi.DM(D_reg) * casadi.DM(Q'));   % Reconstruct the Hessian using eigenvectors and regularized eigenvalues
 
 % Ensure symmetry (numerical precision may cause small asymmetries)
 H_reg = (H_reg + H_reg') / 2;

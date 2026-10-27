@@ -51,7 +51,7 @@ theta_min = min(linesearch_filter(1,1),1)*obj.opts.filter_struct.theta_min;
 dk = x_star    - x_k;
 
 % descent direction
-nabla_f_dir = full(obj.eval_gradCost(x_k,p0)*dk);
+nabla_f_dir = full(obj.eval_nabla_f_dir(x_k,x_star,p0));
 
 % f-type switching: descent direction + progress in cost better than con. violation
 f_type = alpha*nabla_f_dir  < 0 && (-alpha*nabla_f_dir)^s_phi*alpha^(1-s_phi) > delta*theta_xk^s_theta;
