@@ -4,12 +4,16 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K,z,Mp,Md] = grambasis(S,I,newton_solver)
+function [Z,K_red,z,Mp,Md,K] = grambasis(S,I,prune,solver)
 % Return Gram basis of polynomial vector.
 
 if nargin < 3
-    % no Newton simplification
-    newton_solver = '';
+    % no simplification
+    prune = false;
+end
+
+if prune == 2 && nargin < 4
+    error('Please provide a solver to perform the Newton reduction.')
 end
 
 if nargin < 2 || isempty(I)
@@ -78,19 +82,38 @@ Irem = [ceil(vertcat(MX{:})/2) < zdm, floor(vertcat(MN{:})/2) > zdm];
 Lz(reshape(any(Irem,2),lz,lp)') = false;
 
 % remove unused monomials from base vector
-I = any(Lz,1);
-degmat = z.degmat(I,:);
-Lz(:,~I) = [];
+Ir = any(Lz,1);
+degmat = z.degmat(Ir,:);
+Lz(:,~Ir) = [];
 
-% removes monomials outside half Newton polytope
-if ~isempty(newton_solver)
-    Ldegmat_red = Ldegmat(idx,:);
-    Lz_red = arrayfun(@(i) newton_reduce(S.degmat(Ldegmat_red(i,:),Iv),degmat,newton_solver,Lz(i,:)'), 1:lp, 'UniformOutput', false);
-    Lz_red = horzcat(Lz_red{:})';
-    
-    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets,Lz_red);
-else
-    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
+% build output sparsity, cone sizes and gram basis to output sparsity mapping 
+switch prune
+    case 0
+        % No reduction algorithm
+        [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);
+        K_red = K; % no change
+    case 1
+        % Zero Diagonal Algorithm
+        %
+        % [1] Seiler, P.; Zheng, Q.; Balas, G. Simplification Methods 
+        %     for Sum-of-Squares Programs. arXiv March 6, 2013.
+        %
+        [Z,K_red,Mp,Md,K] = zero_diagonal_alg(Lz,degmat,z.indets,S,I,idx,lp);
+    case 2
+        % Newton Polytope Reduction
+        %
+        % [2] Lofberg, J. Pre- and Post-Processing Sum-of-Squares Programs 
+        %     in Practice. IEEE Trans. Automat. Contr. 2009, 54 (5), 
+        %     1007–1011. https://doi.org/10.1109/TAC.2009.2017144
+        %
+        Ldegmat_red = Ldegmat(idx,:);
+        Lz_red = arrayfun(@(i) newton_reduce(S.degmat(Ldegmat_red(i,:),Iv),degmat,solver,Lz(i,:)'), 1:lp, 'UniformOutput', false);
+        Lz_red = horzcat(Lz_red{:})';
+        %[Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets,Lz_red);
+        [Z,K_red,Mp,Md] = gram_internal(Lz_red,degmat,z.indets);
+        K = full(sum(Lz,2));
+    otherwise
+        error('This pruning option is not valid.')
 end
 
 % build half-basis for each element

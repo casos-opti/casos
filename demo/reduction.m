@@ -4,7 +4,7 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-% Demonstrate Newton polytope monomial basis reduction 
+% Demonstrate monomial basis reduction through zero diagonal algorithm
 
 x = casos.PS('x', 3, 1);
 f = casos.PS.sym('f');
@@ -24,12 +24,9 @@ opts.Kc.sos = 4;
 % ignore infeasibility
 opts.error_on_fail = false;
 
-% Enables Newton polytope simplification.
-% By default, CaSoS uses the same solver as for the main SDP.
 % To disable simplification:
-%   - Set opts.newton_solver to []
-%   - If using qcsossol, set opts.sossol_options.newton_solver = []
-opts.newton_solver = 'mosek'; 
+%   - Set opts.prune to 0
+opts.prune = 1; 
 
 % Build the solver
 tic
@@ -42,4 +39,6 @@ fprintf('sol.f = %d \n', full(sol.f)); % the value should be 1.7107
 
 % Run the solver to obtain an accurate computation time
 tsol = timeit(@()S());
-fprintf('newton = %s || time: %ds \n', opts.newton_solver, tsol);
+fprintf('reduction = %d \n', opts.prune);
+fprintf('time: %ds \n',tsol);
+disp(S.info.gram.Kc')
