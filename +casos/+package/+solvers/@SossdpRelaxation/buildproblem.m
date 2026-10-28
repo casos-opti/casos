@@ -34,9 +34,9 @@ Is = [false(Nl,1); true(Ns,1); true(Nds,1); true(Nsds,1)];
 Js = [false(Ml,1); true(Ms,1); true(Mds,1); true(Msds,1)];
 
 % obtain Gram basis for decision variables
-[Zvar_s,Ksdp_x_s,~,Mp_x,Md_x] = grambasis(sparsity(sos.x),Is,opts.prune);
+[Zvar_s,Ksdp_x_s,~,Mp_x,Md_x,Ksdp_x_s_orig] = grambasis(sparsity(sos.x),Is,opts.prune,opts.newton_solver);
 % obtain Gram basis for sum-of-squares constraints
-[Zcon_s,Ksdp_g_s,~,Mp_g,Md_g] = grambasis(sparsity(sos.g),Js,opts.prune);
+[Zcon_s,Ksdp_g_s,~,Mp_g,Md_g,Ksdp_g_s_orig] = grambasis(sparsity(sos.g),Js,opts.prune,opts.newton_solver);
 
 % matrix decision variables for variables
 Qvar_G = casadi.SX.sym('P',sum(Ksdp_x_s.^2),1);
@@ -213,5 +213,6 @@ obj.gram2sos = casadi.Function('L', ...
 
 % Fill info struct
 obj.sosopt_info.gram = struct('Kx', Ksdp_x_s, 'Kc', Ksdp_g_s);
+obj.sosopt_info.gram_orig = struct('Kx', Ksdp_x_s_orig, 'Kc', Ksdp_g_s_orig);
 
 end
