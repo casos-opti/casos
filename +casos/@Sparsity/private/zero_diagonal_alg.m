@@ -34,10 +34,8 @@ loc2_saver = false(size(diag_idx));
 for iter = 1:sum(K)
     % for each zero row, count how many nonzero entries it has in Mp
     Mp_red = Mp*diag(idx(idx_static));
-    tic
     rows_to_fix = intersect(find(sum(Mp_red,2)==1), zero_rows);
-    toc
-
+    
     % in case no zero equality if found on a diagonal element
     if isempty(rows_to_fix); break; end
 
