@@ -25,7 +25,7 @@ args{6} = -inf(obj.sparsity_gl.nnz,1);
 args{7} =  inf(obj.sparsity_gl.nnz,1);
 
 % initial guess for
-r0 = ones(solver.feasRes_para.n_r,1);
+r0 = ones(solver.feas_res_para.n_r,1);
 
 % decision variabbles of feasibility restoration
 x_k = [r0; x_R];
@@ -38,31 +38,31 @@ dual_k = zeros(obj.init_para.no_dual_var,1);
 % initialize BFGS-matrix for feasibility restoration;
 % we only support BFGS because we have acutally a linear cost + a quadratic
 % term; other methods faild in the past
-Bk =  eye(obj.init_para.size_B)*obj.opts.scale_BFGS0;
+Bk =  eye(obj.init_para.size_B)*obj.opts.scale_bfgs0;
 
 
 % initialize filter for feasibility restoration
-args_conVio     =  cell(10,1);
-args_conVio{2}  =  [p0;  x_k];
-args_conVio{3}  = -inf(obj.init_para.conVio.no_con,1);
-args_conVio{4}  =  inf(obj.init_para.conVio.no_con,1);
+args_con_vio    =  cell(10,1);
+args_con_vio{2} =  [p0;  x_k];
+args_con_vio{3} = -inf(obj.init_para.con_vio.no_con,1);
+args_con_vio{4} =  inf(obj.init_para.con_vio.no_con,1);
 
-args_conVio{6} = [];
-args_conVio{7} = [];
+args_con_vio{6} = [];
+args_con_vio{7} = [];
 
-sol_convio = eval_on_basis(obj.solver_conVio, args_conVio);
+sol_con_vio = eval_on_basis(obj.solver_con_vio, args_con_vio);
 
 lb = args{6};
 ub = args{7};
-linviolation = obj.linvio(x_k,p0,lb,ub);
+lin_violation = obj.linvio(x_k,p0,lb,ub);
 
 % largest constraint violation
-theta_x_k = full(max(0,max([sol_convio{1}; linviolation])));   
+theta_x_k = full(max(0,max([sol_con_vio{1}; lin_violation])));   
 
 % compute cost
 f_x_k     = full(obj.eval_cost(x_k,p0));
 
-filter = [max(1,theta_x_k)*10, inf];
+linesearch_filter = [max(1,theta_x_k)*10, inf];
 
 lambda_min = 0.01;
 lambda_max = 1;
@@ -82,7 +82,7 @@ alpha_k            = 1;
 
 feasibility_flag = 0;
 
-measTime_seqSOS_in = tic;
+t_solve = tic;
 while iter <= obj.opts.max_iter
 
     printf(obj.log,'debug','r%-8dr%-15er%-15er%-15er%-15er%-10fr%-10e\n',...
@@ -95,10 +95,10 @@ while iter <= obj.opts.max_iter
 
         printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
         printf(obj.log,'debug','Solution status: Optimal solution found in feasibility restoration. Problem seems infeasible.\n');
-        solveTime = toc(measTime_seqSOS_in);
-        printf(obj.log,'debug',['Solution time: ' num2str(solveTime) ' s\n']);
+        measSolveTime = toc(t_solve);
+        printf(obj.log,'debug',['Solution time: ' num2str(measSolveTime) ' s\n']);
         printf(obj.log,'debug',['Build time: ' num2str(obj.display_para.solver_build_time) ' s\n']);
-        printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+solveTime) ' s\n']);
+        printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+measSolveTime) ' s\n']);
 
         % if the feasibility restoration found an optimal solution and not
         % acceptable to the filter of the original problem
@@ -111,7 +111,7 @@ while iter <= obj.opts.max_iter
     feasibility_flag = 0;
 
     % compute solution of current iterate: solve Q-SDP, perform linesearch and update BFGS
-    [sol_iter,sol_qp,feas_res_flag,stats,obj,filter,Bk] = do_single_iteration(obj, ...
+    [sol_iter,sol_qp,feas_res_flag,stats,obj,linesearch_filter,Bk] = do_single_iteration(obj, ...
         iter,...
         x_k,...
         dual_k,...
@@ -120,7 +120,7 @@ while iter <= obj.opts.max_iter
         Bk,...
         p0,...
         args, ...
-        filter, ...
+        linesearch_filter, ...
         stats);
 
     %% check feasibility;
@@ -144,13 +144,13 @@ while iter <= obj.opts.max_iter
         alpha_k   = sol_iter.alpha_k;
 
         % first n_r decision variables are the individual constraint violations
-        theta_x_k_or = full(max(0,max(x_k(1:solver.feasRes_para.n_r))));
+        theta_x_k_or = full(max(0,max(x_k(1:solver.feas_res_para.n_r))));
 
         % store them
-        stats{iter}.constraint_violation = x_k(1:solver.feasRes_para.n_r);
+        stats{iter}.constraint_violation = x_k(1:solver.feas_res_para.n_r);
 
         % cost (original problem) at trial point
-        f_x_k1_or   = full(solver.eval_cost(x_k(solver.feasRes_para.n_r+1:end),p00));
+        f_x_k1_or   = full(solver.eval_cost(x_k(solver.feas_res_para.n_r+1:end),p00));
 
         % check acceptance to filter of the original problem
         theta_l = filter_glob(:,1);
@@ -164,15 +164,15 @@ while iter <= obj.opts.max_iter
         % check pairs; if one means both lie in forbidden region
         dominance_bool = all(dominance_bool, 2);
 
-        if any(dominance_bool) % means not acceptable to filter
-            filter_Acceptance = 0;
+        if any(dominance_bool) % means not acceptable to linesearch_filter
+            filter_acceptance = 0;
         else
-            filter_Acceptance = 1;
+            filter_acceptance = 1;
         end
 
 
         % check acceptance to filter of original problem plus threshold for constraint violation
-        if filter_Acceptance && ...              % acceptable to filter
+        if filter_acceptance && ...              % acceptable to linesearch_filter
                 theta_x_k_or <= theta_x_R0*kappa_res % threshold
 
             feasibility_flag = 1;
@@ -212,26 +212,26 @@ if feasibility_flag <= 0
     % return last solution of q-SDP
     sol    = sol_qp;
 
-    sol{1} = x_k(solver.feasRes_para.n_r+1:end);
-    sol{5} = dual_k(solver.feasRes_para.n_r+1:end);
+    sol{1} = x_k(solver.feas_res_para.n_r+1:end);
+    sol{5} = dual_k(solver.feas_res_para.n_r+1:end);
 
 else
 
     % return solution of successful restoration
     sol    = sol_qp;
 
-    sol{1} = casadi.DM(x_k(solver.feasRes_para.n_r+1:end));
-    sol{5} = dual_k(solver.feasRes_para.length_dualOut+1:end);
+    sol{1} = casadi.DM(x_k(solver.feas_res_para.n_r+1:end));
+    sol{5} = dual_k(solver.feas_res_para.length_dual_out+1:end);
 
     % output to original problem
-    sol_iter.x_k1       = sol_iter.x_k1(solver.feasRes_para.n_r+1:end);
-    sol_iter.dual_k1    = sol_iter.dual_k1(solver.feasRes_para.length_dualOut+1:end);
+    sol_iter.x_k1       = sol_iter.x_k1(solver.feas_res_para.n_r+1:end);
+    sol_iter.dual_k1    = sol_iter.dual_k1(solver.feas_res_para.length_dual_out+1:end);
     sol_iter.f_x_k1     = f_x_k1_or ;
     sol_iter.theta_x_k1 = theta_x_k_or;
 
 end
 
-stats_glob{iter_glob} = stats{iter};
+stats_glob{iter_glob}.stats_feas_res = stats{iter};
 
 end % end of eval_extended
 

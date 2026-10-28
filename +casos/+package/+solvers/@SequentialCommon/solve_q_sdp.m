@@ -23,7 +23,7 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [x_star,dual_star,sol_iter,sol_qp,feas_res_flag,stats] = solve_Q_SDP(obj, ...
+function [x_star,dual_star,sol_iter,sol_qp,feas_res_flag,stats] = solve_q_sdp(obj, ...
     iter, ...
     x_k, ...
     p0, ...
@@ -38,12 +38,14 @@ args{2}  = [p0; x_k; Bk(:)];
 % adjust bounds
 % args{3}  = args{3} - x_k;
 % args{4}  = args{4} - x_k;
-measSolver =tic;
+
+t_sdp = tic;
 sol_qp   = eval_on_basis(obj.solver_convex, args);
-solveTimeSDP = toc(measSolver);
+measSdpTime = toc(t_sdp);
+
 % store iteration info
-stats{iter} = obj.solver_convex.get_stats  ;
-stats{iter}.timeStats.mainSDP = solveTimeSDP;
+stats{iter}.sdp_sol                  = obj.solver_convex.get_stats;
+stats{iter}.time_stats.main_sdp_time = measSdpTime;
 
 %% check solution status
 switch (obj.solver_convex.get_stats.UNIFIED_RETURN_STATUS)

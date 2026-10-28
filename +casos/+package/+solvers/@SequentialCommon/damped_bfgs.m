@@ -17,7 +17,7 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function Bk = damped_BFGS(obj,Bk,x_k,p0,sol_iter,iter)
+function Bk = damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter)
 
 % update BFGS
 s_val = full( obj.eval_s(x_k,sol_iter.x_k1,p0) );
@@ -35,19 +35,19 @@ r_val = full( obj.eval_r(Bk,theta,y_val,s_val) );
 
 % update Bk
 % B = B + (r*r')/(s'*r) - (B*s*s'*B)/(s'*B*s);
-Bk =  full( obj.damped_BFGS(Bk,r_val,s_val) );
+Bk =  full( obj.damped_bfgs(Bk,r_val,s_val) );
 
 % check symmetry of Hessian and ajdust if necessary
-Bknonsym = norm(Bk-Bk',inf);
+bk_nonsym = norm(Bk-Bk',inf);
 
-if Bknonsym > eps
+if bk_nonsym > eps
     Bk = (Bk+Bk')/2;
 end
 
 % check if Hessian is PD, if not apply perturbation
-[~,cholFlag] = chol(Bk);
+[~,chol_flag] = chol(Bk);
 
-if cholFlag
+if chol_flag
     dE=abs(eig(Bk,'nobalance'));
     pert=(min(dE)+2*eps*max(dE))/(1-2*eps);
     Bk=Bk + pert*eye(length(Bk));
