@@ -37,11 +37,7 @@ gershgorin_bound = h_diag - (row_sum - abs(h_diag));
 sigma = min(gershgorin_bound);
 
 % Determine tau based on sigma
-if sigma > 0
-    tau = 0; % Already positive definite
-else
-    tau = (epsilon - sigma) / (abs(sigma) + 1);
-end
+tau = max(0, epsilon - sigma) / (abs(sigma) + 1);
 
 
 % Add the regularization term to the Hessian

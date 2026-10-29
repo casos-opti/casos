@@ -30,7 +30,8 @@ function H_reg = regularize_hessian(H)
     [Q, lambda] = eig(H, 'vector');   % orthonormal Q for symmetric H
     tau = epsilon * max(norm(H, 'fro'), 1);
 
-    if min(lambda) < tau
+    % with relaxation based on Ipopt paper
+    if min(lambda) <= tau + 10*eps*max(1,abs(tau))
         lambda_reg = max(lambda, tau);
 
         H_reg = Q * diag(lambda_reg) * Q';   % nearest PD in Frobenius norm

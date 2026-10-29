@@ -27,9 +27,24 @@ function  [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,all_violations] = check_fil
 % use Langrange function instead of cost function in filter
 lagrange_filter = obj.opts.filter_struct.lagrange_filter;
 
-% compute new solution candidate
-x_k1    = full(x_k     + alpha*dk);
 if strcmpi(obj.opts.con_vio_check,'signed-distance')
+
+    % violation of the linear constraints
+    lb = args{6}; 
+    ub = args{7}; 
+
+    % compute new solution candidate
+    if lagrange_filter
+        [x_k1,lin_violation,L_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,dkl,dual_k,lb,ub);
+        x_k1 = full(x_k1);
+        lin_violation = full(lin_violation);
+        L_k1 = full(L_k1);
+    else
+        [x_k1,lin_violation,f_x_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,lb,ub);
+        x_k1 = full(x_k1);
+        f_x_k1 = full(f_x_k1);
+    end
+
     % compute constraint violation of new solution candidate
     args_con_vio    =  args;
     args_con_vio{2} =  [p0; x_k1];
@@ -40,11 +55,6 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
     args_con_vio{7} = [];
 
     sol_con_vio = eval_on_basis(obj.solver_con_vio, args_con_vio);
-
-    % violation of the linear constraints
-    lb = args{6}; 
-    ub = args{7}; 
-    lin_violation = obj.linvio(x_k,p0,lb,ub);
 
     % extract signed-distances
     all_violations = [sol_con_vio{1}; lin_violation];
@@ -58,28 +68,20 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
     end
 else
     % evalaute at current solution and samples
-    g_val = full(obj.eval_constraint_samples(x_k1,obj.opts.user_sample));
-
-    % from all constraints get the smallest function value
-    all_violations  = min(g_val);
-
-    % get the overall smallest value
-    min_vio = min(min(g_val));
-    if min_vio < 0
-        theta_x_k1 = abs(min_vio);
+    if lagrange_filter
+        [x_k1,all_violations,theta_x_k1,L_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,dkl,dual_k,obj.opts.user_sample);
+        x_k1 = full(x_k1);
+        all_violations = full(all_violations);
+        theta_x_k1 = full(theta_x_k1);
+        L_k1 = full(L_k1);
     else
-        theta_x_k1 = 0; % all samples positive; no violation
+        [x_k1,all_violations,theta_x_k1,f_x_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,obj.opts.user_sample);
+        x_k1 = full(x_k1);
+        all_violations = full(all_violations);
+        theta_x_k1 = full(theta_x_k1);
+        f_x_k1 = full(f_x_k1);
     end
-
 end
-% cost at trial point
-if lagrange_filter
-    dual_k1 = full(dual_k  + alpha*dkl);
-    L_k1     = full(obj.eval_L(x_k1,p0,dual_k1));
-else
-    f_x_k1   = full(obj.eval_cost(x_k1,p0));
-end
-
 
 % check filter acceptance
 % get filter inputs

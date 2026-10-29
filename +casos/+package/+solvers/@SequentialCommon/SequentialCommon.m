@@ -46,6 +46,8 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         eval_gradCost;
         eval_constraint_samples;
         eval_nabla_f_dir;
+        eval_x_k1;
+        eval_suff_decrease;
 
         % damped BFGS
         damped_bfgs;

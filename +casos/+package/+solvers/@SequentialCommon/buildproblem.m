@@ -238,6 +238,73 @@ obj.eval_termination = casadi.Function('f',{f_val,gln_val,gl_val,dxi_val,tol_val
 x_star_dir = casos.PS.sym('x_star',base_x);
 obj.eval_nabla_f_dir = casos.Function('f',{basis_nlsos_x, poly2basis(x_star_dir), basis_nlsos_p}, { dot(Df, x_star_dir - nlsos.x) });
 
+% compute new solution candidate
+alpha_ls = casadi.SX.sym('alpha');
+dk_ls = casadi.SX.sym('dk',nnz(base_x),1);
+x_k1_ls = basis_nlsos_x + alpha_ls*dk_ls;
+
+if strcmpi(obj.opts.con_vio_check,'signed-distance')
+    if obj.opts.filter_struct.lagrange_filter
+        dkl_ls = casadi.SX.sym('dkl',obj.sparsity_g.nnz,1);
+        dual_k_ls = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,dkl_ls,dual_k_ls,lb,ub}, ...
+            {x_k1_ls, obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), obj.eval_L(x_k1_ls,basis_nlsos_p,dual_k_ls + alpha_ls*dkl_ls)});
+    else
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,lb,ub}, ...
+            {x_k1_ls, obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), obj.eval_cost(x_k1_ls,basis_nlsos_p)});
+    end
+else
+    % evalaute at current solution and samples
+    g_x_k1_ls = obj.eval_constraint_samples(x_k1_ls,X);
+    % from all constraints get the smallest function value
+    all_violations_ls = min(g_x_k1_ls);
+    % get the overall smallest value
+    theta_ls = fmax(0,-all_violations_ls);
+    if obj.opts.filter_struct.lagrange_filter
+        dkl_ls = casadi.SX.sym('dkl',obj.sparsity_g.nnz,1);
+        dual_k_ls = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,dkl_ls,dual_k_ls,X}, ...
+            {x_k1_ls, all_violations_ls, theta_ls, obj.eval_L(x_k1_ls,basis_nlsos_p,dual_k_ls + alpha_ls*dkl_ls)});
+    else
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,X}, ...
+            {x_k1_ls, all_violations_ls, theta_ls, obj.eval_cost(x_k1_ls,basis_nlsos_p)});
+    end
+end
+
+nabla_f_dir_ls = casadi.SX.sym('nabla_f_dir');
+theta_xk_ls = casadi.SX.sym('theta_xk');
+theta_x_k1_ls = casadi.SX.sym('theta_x_k1');
+f_x_k1_ls = casadi.SX.sym('f_x_k1');
+f_xk_ls = casadi.SX.sym('f_xk');
+
+% f-type switching: descent direction + progress in cost better than con. violation
+f_type_ls = (alpha_ls*nabla_f_dir_ls < 0) & ((-alpha_ls*nabla_f_dir_ls)^obj.opts.filter_struct.s_phi*alpha_ls^(1-obj.opts.filter_struct.s_phi) > obj.opts.filter_struct.delta*theta_xk_ls^obj.opts.filter_struct.s_theta);
+
+% check progress w.r.t. previous iteration
+% with relaxation based on Ipopt paper
+suff_decrease_ls = (theta_x_k1_ls - (1-obj.opts.filter_struct.gamma_theta)*theta_xk_ls <= 10*eps*abs(theta_xk_ls)) | (f_x_k1_ls - f_xk_ls + obj.opts.filter_struct.gamma_phi*theta_xk_ls <= 10*eps*abs(f_xk_ls));
+
+% check armijo-condition
+if obj.opts.filter_struct.lagrange_filter
+    L_k1_ls = casadi.SX.sym('L_k1');
+    L_k_ls = casadi.SX.sym('L_k');
+    x_star_ls = casadi.SX.sym('x_star',nnz(base_x),1);
+    armijo_ls = L_k1_ls <= L_k_ls + obj.opts.filter_struct.eta*obj.eval_dLdx(basis_nlsos_x,basis_nlsos_p,dual_k_ls)'*(x_star_ls - basis_nlsos_x);
+    obj.eval_suff_decrease = casos.Function('suff_decrease', ...
+        {alpha_ls,nabla_f_dir_ls,theta_xk_ls,theta_x_k1_ls,f_x_k1_ls,f_xk_ls,L_k1_ls,L_k_ls,x_star_ls,dual_k_ls,basis_nlsos_x,basis_nlsos_p}, ...
+        {f_type_ls,armijo_ls,suff_decrease_ls});
+else
+    % with relaxation based on Ipopt paper
+    armijo_ls = f_x_k1_ls - f_xk_ls - obj.opts.filter_struct.eta*alpha_ls*nabla_f_dir_ls <= 10*eps*abs(f_xk_ls);
+    obj.eval_suff_decrease = casos.Function('suff_decrease', ...
+        {alpha_ls,nabla_f_dir_ls,theta_xk_ls,theta_x_k1_ls,f_x_k1_ls,f_xk_ls}, ...
+        {f_type_ls,armijo_ls,suff_decrease_ls});
+end
+
 obj.eval_constraint = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, {poly2basis(nlsos.g)});
 
 %% get parameter that are needed for initilization
