@@ -108,8 +108,8 @@ jobs:
           retention-days: 30
 
   # =============================================================================
-  # JOB 2: poly-tools
-  # PURPOSE: Test polynomial operations by comparing against reference implementation
+  # JOB 2: get-casadi-releases
+  # PURPOSE: Get the latests 3 CasADi releases
   # =============================================================================
   get-casadi-releases:
     runs-on: ubuntu-latest
@@ -135,12 +135,21 @@ jobs:
             | tail -n 3 \
             | jq -R . | jq -sc .)
 
+          # Fallback if empty
+          if [ -z "$RELEASES" ] || [ "$RELEASES" = "null" ]; then
+            RELEASES='["3.6.7","3.7.2","3.8.1"]'
+          fi
+
           # display the releases obtained
           echo "All releases ${RELEASES}" 
 
           # Set outputs for other jobs to consume
           echo "releases=${RELEASES}" >> $GITHUB_OUTPUT
-  
+
+  # =============================================================================
+  # JOB 3: poly-tools
+  # PURPOSE: Test polynomial operations by comparing against reference implementation
+  # =============================================================================
   poly-tools:
     name: Core tests (casadi v${{ matrix.casadi-version }})
     needs: get-casadi-releases
@@ -235,12 +244,17 @@ jobs:
         run: exit 1
           
   # =============================================================================
-  # JOB 3: sdp-tools
+  # JOB 4: sdp-tools
   # PURPOSE: Test SDP solver interfaces (Mosek, SeDuMi, Clarabel, SCS)
   # =============================================================================
   sdp-tools:
-    name: Convex solvers
+    name: Convex solvers (casadi v${{ matrix.casadi-version }})
+    needs: get-casadi-releases
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Continue testing other versions even if one fails
+      matrix:
+        casadi-version: ${{ fromJSON(needs.get-casadi-releases.outputs.releases) }}
 
     permissions:
       checks: write
@@ -264,6 +278,7 @@ jobs:
         uses: ./.github/actions/CasADi-setup
         with:
           message: "Setup CasADi"
+          CASADI_VERSION: ${{ matrix.casadi-version }} 
 
       # STEP 4: Setup optimization solvers
       # Installs and configures Mosek and SeDuMi solvers
@@ -329,14 +344,18 @@ jobs:
         run: exit 1
    
   # =============================================================================
-  # JOB 4: demo-check
+  # JOB 5: demo-check
   # PURPOSE: Verify that all demo scripts execute without errors
   # DEPENDENCIES: Requires successful solver tests (sdp-tools)
   # =============================================================================
   demo-check:
-    name: Demos analysis
-    needs: sdp-tools      # Only run if solver tests pass
+    name: Demos analysis (casadi v${{ matrix.casadi-version }})
+    needs: [get-casadi-releases, sdp-tools]     # Only run if solver tests pass
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Continue testing other versions even if one fails
+      matrix:
+        casadi-version: ${{ fromJSON(needs.get-casadi-releases.outputs.releases) }}
   
     permissions:
       checks: write
@@ -360,6 +379,7 @@ jobs:
         uses: ./.github/actions/CasADi-setup
         with:
           message: "Setup CasADi"
+          CASADI_VERSION: ${{ matrix.casadi-version }} 
 
       # STEP 4: Setup optimization solvers
       - name: Setup Solvers
@@ -413,7 +433,7 @@ jobs:
         run: exit 1
            
   # =============================================================================
-  # JOB 5: notify-failures
+  # JOB 6: notify-failures
   # PURPOSE: Comment on PR if any test jobs failed
   # DEPENDENCIES: Runs after all test jobs complete
   # =============================================================================
