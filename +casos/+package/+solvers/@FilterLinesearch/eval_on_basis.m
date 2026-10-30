@@ -105,7 +105,28 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
     lin_violation = obj.linvio(x_k,p0,lb,ub);
 
     % largest constraint violation
-    theta_x_k = full(max(0,max([sol_con_vio{1}; lin_violation])));   
+    theta_x_k = full(max(0,max([sol_con_vio{1}; lin_violation])));
+
+elseif strcmpi(obj.opts.con_vio_check,'projection')
+    % initialize filter and first iterate
+    args_con_vio    =  args;
+    args_con_vio{2} =  [p0; x_k];
+    args_con_vio{3} = [];
+    args_con_vio{4} =  [];
+
+    args_con_vio{6} = [];
+    args_con_vio{7} = [];
+
+    % compute constraint violation of initial guess
+    sol_con_vio = eval_on_basis(obj.solver_con_vio, args_con_vio);
+
+    lb = args{6};
+    ub = args{7};
+    lin_violation = obj.linvio(x_k,p0,lb,ub);
+
+    % largest constraint violation: cost gives us minimum. violation
+    theta_x_k = full(max(0,max([sol_con_vio{2}; lin_violation])));
+
 else
     g_val = full(obj.eval_constraint_samples(x_k,obj.opts.user_sample));
 
@@ -401,7 +422,7 @@ while iter <= obj.opts.max_iter
     % exchange the primal/dual solution of QP with the accepted iterate
     sol{1} = sol_iter.x_k1;
     sol{2} = sol_iter.f_x_k1;
-
+    % sol{3} = obj.eval_constraint(sol_iter.x_k1,p0);
     % dual variables estimated by underlying quadratic SDP
     sol{4} = sol_qp{4};
     sol{5} = sol_iter.dual_k1;

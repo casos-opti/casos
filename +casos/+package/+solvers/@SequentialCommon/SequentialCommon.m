@@ -42,7 +42,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         eval_L;
         eval_dLdx;
 
-        % linesearch
+        % line search
         eval_gradCost;
         eval_constraint_samples;
         eval_nabla_f_dir;

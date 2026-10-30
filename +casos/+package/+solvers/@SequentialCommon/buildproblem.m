@@ -118,6 +118,50 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
 
     % initialize convex SOS solver
     obj.solver_con_vio = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_con_vio,sosopt);
+
+elseif strcmpi(obj.opts.con_vio_check,'projection')
+
+    % get cone dimensions
+    Ml = get_dimension(obj.get_cones,opts.Kc,'lin');
+    Ms = get_dimension(obj.get_cones,opts.Kc,'sos');
+
+    % create logical indices for SOS
+    I = [false(Ml,1); true(Ms,1)];
+
+    % create function to check the linear equality constraints violation
+    coordinates_lin = poly2basis(nlsos.g,~I);
+    nnz_lin = coordinates_lin.nnz;
+
+    % set upper and lower bounds
+    ub = casadi.SX.sym('ub', nnz_lin, 1);
+    lb = casadi.SX.sym('lb', nnz_lin, 1);
+
+    % create function to evaluate the violation of the linear cone 
+    obj.linvio = casadi.Function('linvio', {basis_nlsos_x, basis_nlsos_p, lb, ub}, {[coordinates_lin-ub; lb-coordinates_lin]});
+
+    % Gram decision variable
+    s_proj = casos.PS.sym('q',grambasis(nlsos.g,I));
+
+    % projection error
+    e = s_proj - nlsos.g;
+
+    % define Q-SOS problem:
+    %   min ||s-p||^2 s.t. s is SOS
+    sos_proj = struct('x',s_proj, ...
+                      'f',dot(e,e),...
+                      'p',[nlsos.p; nlsos.x]);
+
+
+
+    % SOS options
+    sosopt_proj               = opts.sossol_options;
+    sosopt_proj.Kx            = struct('sos',length(s_proj));
+
+    sosopt_proj.error_on_fail = true;
+
+    % initialize convex SOS solver
+    obj.solver_con_vio = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_proj,sosopt_proj);
+
 else
     % evaluate constraints on sample points
     X  = casadi.SX.sym('x',nlsos.g.nvars,1);
@@ -215,6 +259,7 @@ obj.eval_cost      = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { full(nl
 obj.eval_gradCost  = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { op2basis( Df ) });
 % norm gradient langrangian
 obj.eval_gradLag =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dLdx0,inf ) });
+% inf-norm of lambda*constraint
 obj.eval_gradLag_inf_norm  =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dot(lam_gs,nlsos.g),inf) });
 
 % step norms of primal and dual iterates
@@ -222,27 +267,40 @@ xk_step  = casadi.SX.sym('x_k',nnz(base_x),1);
 xk1_step = casadi.SX.sym('x_k1',nnz(base_x),1);
 dk_step  = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
 dk1_step = casadi.SX.sym('dual_k1',obj.sparsity_g.nnz,1);
+
+% function for delta in primal, dual 
 obj.eval_step_norms = casadi.Function('f',{xk_step,xk1_step,dk_step,dk1_step}, ...
     {norm(xk_step,inf), norm(xk1_step-xk_step,inf), norm(dk_step,inf), norm(dk1_step-dk_step,inf)});
 
 % thresholds of the first-order optimality termination checks
-f_val   = casadi.SX.sym('f');
-gln_val = casadi.SX.sym('gln');
-gl_val  = casadi.SX.sym('gl');
-dxi_val = casadi.SX.sym('dxi');
-tol_val = casadi.SX.sym('tol');
+f_val   = casadi.SX.sym('f');   % cost
+gln_val = casadi.SX.sym('gln'); % constraints
+gl_val  = casadi.SX.sym('gl');  % dual
+dxi_val = casadi.SX.sym('dxi'); % search direction
+tol_val = casadi.SX.sym('tol'); % tolerance
+
+% one function for all termination criteria
 obj.eval_termination = casadi.Function('f',{f_val,gln_val,gl_val,dxi_val,tol_val}, ...
-    {(tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, (10*tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, tol_val*fmax(1,gl_val)});
+    {(tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, ...   % lagrange derivative 
+    (10*tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, ... % lagrange derivative  (relaxed)
+     tol_val*fmax(1,gl_val)});                             
 
 % directional derivative of the cost along the search direction
 x_star_dir = casos.PS.sym('x_star',base_x);
-obj.eval_nabla_f_dir = casos.Function('f',{basis_nlsos_x, poly2basis(x_star_dir), basis_nlsos_p}, { dot(Df, x_star_dir - nlsos.x) });
+
+% search direction
+obj.eval_nabla_f_dir = casos.Function('f',{basis_nlsos_x, poly2basis(x_star_dir), basis_nlsos_p}, ...
+                                          { dot(Df, x_star_dir - nlsos.x) });
 
 % compute new solution candidate
 alpha_ls = casadi.SX.sym('alpha');
-dk_ls = casadi.SX.sym('dk',nnz(base_x),1);
+dk_ls    = casadi.SX.sym('dk',nnz(base_x),1);
+
+% compute new-solution candidate
 x_k1_ls = basis_nlsos_x + alpha_ls*dk_ls;
 
+% get evaluation functions for filter (distinguish input i.e. classic or as
+% Lagrange function filter)
 if strcmpi(obj.opts.con_vio_check,'signed-distance')
     if obj.opts.filter_struct.lagrange_filter
         dkl_ls = casadi.SX.sym('dkl',obj.sparsity_g.nnz,1);
@@ -251,17 +309,43 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
             {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,dkl_ls,dual_k_ls,lb,ub}, ...
             {x_k1_ls, obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), obj.eval_L(x_k1_ls,basis_nlsos_p,dual_k_ls + alpha_ls*dkl_ls)});
     else
+        % one function to compute new solution candidate, lin. constraint
+        % violation and cost (for filter)
         obj.eval_x_k1 = casos.Function('x_k1', ...
             {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,lb,ub}, ...
-            {x_k1_ls, obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), obj.eval_cost(x_k1_ls,basis_nlsos_p)});
+            {x_k1_ls, ...                                       % new sol. candidate
+             obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), ... % lin. constraints
+             obj.eval_cost(x_k1_ls,basis_nlsos_p)});            % cost
     end
-else
-    % evalaute at current solution and samples
+
+elseif strcmpi(obj.opts.con_vio_check,'projection')
+
+    if obj.opts.filter_struct.lagrange_filter
+        dkl_ls = casadi.SX.sym('dkl',obj.sparsity_g.nnz,1);
+        dual_k_ls = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,dkl_ls,dual_k_ls,lb,ub}, ...
+            {x_k1_ls, obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), obj.eval_L(x_k1_ls,basis_nlsos_p,dual_k_ls + alpha_ls*dkl_ls)});
+    else
+        % one function to compute new solution candidate, lin. constraint
+        % violation and cost (for filter)
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,lb,ub}, ...
+            {x_k1_ls, ...                                       % new sol. candidate
+             obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), ... % lin. constraints
+             obj.eval_cost(x_k1_ls,basis_nlsos_p)});            % cost
+    end
+
+else % sampling
+
+    % evaluate at current solution and samples
     g_x_k1_ls = obj.eval_constraint_samples(x_k1_ls,X);
+
     % from all constraints get the smallest function value
     all_violations_ls = min(g_x_k1_ls);
     % get the overall smallest value
     theta_ls = fmax(0,-all_violations_ls);
+
     if obj.opts.filter_struct.lagrange_filter
         dkl_ls = casadi.SX.sym('dkl',obj.sparsity_g.nnz,1);
         dual_k_ls = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
@@ -276,10 +360,10 @@ else
 end
 
 nabla_f_dir_ls = casadi.SX.sym('nabla_f_dir');
-theta_xk_ls = casadi.SX.sym('theta_xk');
-theta_x_k1_ls = casadi.SX.sym('theta_x_k1');
-f_x_k1_ls = casadi.SX.sym('f_x_k1');
-f_xk_ls = casadi.SX.sym('f_xk');
+theta_xk_ls    = casadi.SX.sym('theta_xk');
+theta_x_k1_ls  = casadi.SX.sym('theta_x_k1');
+f_x_k1_ls      = casadi.SX.sym('f_x_k1');
+f_xk_ls        = casadi.SX.sym('f_xk');
 
 % f-type switching: descent direction + progress in cost better than con. violation
 f_type_ls = (alpha_ls*nabla_f_dir_ls < 0) & ((-alpha_ls*nabla_f_dir_ls)^obj.opts.filter_struct.s_phi*alpha_ls^(1-obj.opts.filter_struct.s_phi) > obj.opts.filter_struct.delta*theta_xk_ls^obj.opts.filter_struct.s_theta);
@@ -307,11 +391,14 @@ end
 
 obj.eval_constraint = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, {poly2basis(nlsos.g)});
 
+
+
+
 %% get parameter that are needed for initilization
 obj.init_para.no_dual_var   = obj.sparsity_g.nnz;
 obj.init_para.size_B        = nnz(base_x);
 
-if strcmpi(obj.opts.con_vio_check,'signed-distance')
+if strcmpi(obj.opts.con_vio_check,'signed-distance')  
     obj.init_para.con_vio.no_con = length(sos_con_vio.g);
 end
 

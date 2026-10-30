@@ -62,10 +62,41 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
     % get the largest one
     theta_x_k1 = full(max(0,max(all_violations)));
     
+elseif strcmpi(obj.opts.con_vio_check,'projection')
 
-    if theta_x_k1 == 0
-        stop = 1;
+    % violation of the linear constraints
+    lb = args{6}; 
+    ub = args{7}; 
+
+    % compute new solution candidate
+    if lagrange_filter
+        [x_k1,lin_violation,L_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,dkl,dual_k,lb,ub);
+        x_k1 = full(x_k1);
+        lin_violation = full(lin_violation);
+        L_k1 = full(L_k1);
+    else
+        [x_k1,lin_violation,f_x_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,lb,ub);
+        x_k1 = full(x_k1);
+        f_x_k1 = full(f_x_k1);
     end
+
+    % compute constraint violation of new solution candidate
+    args_con_vio    =  args;
+    args_con_vio{2} =  [p0; x_k1];
+    args_con_vio{3} =  []; % projection has no constraint
+    args_con_vio{4} =  [];
+
+    args_con_vio{6} = [];
+    args_con_vio{7} = [];
+
+    sol_con_vio = eval_on_basis(obj.solver_con_vio, args_con_vio);
+
+    % extract projection: cost gives us minimum. violation
+    all_violations = [sol_con_vio{2}; lin_violation];
+
+    % get the largest one
+    theta_x_k1 = full(max(0,max(all_violations)));
+
 else
     % evalaute at current solution and samples
     if lagrange_filter
