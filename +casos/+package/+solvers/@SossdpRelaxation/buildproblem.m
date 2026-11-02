@@ -213,6 +213,6 @@ obj.gram2sos = casadi.Function('L', ...
 
 % Fill info struct
 obj.sosopt_info.gram = struct('Kx', Ksdp_x_s, 'Kc', Ksdp_g_s);
-obj.sosopt_info.gram_orig = struct('Kc', Ksdp_g_s_orig);
+obj.sosopt_info.gram_orig = struct('Kx', Ksdp_x_s, 'Kc', Ksdp_g_s_orig);
 
 end
