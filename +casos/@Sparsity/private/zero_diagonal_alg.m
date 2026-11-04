@@ -4,7 +4,7 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K_red,Mp,Md,K] = zero_diagonal_alg(Lz, degmat, indets, S, I, idx,lp)
+function [Z,K_red,Mp,Md,K] = zero_diagonal_alg(Lz, degmat, indets, S, I, idx, lp)
 
 [Z,K,Mp,Md] = gram_internal(Lz,degmat,indets);
 K_red = K;
@@ -22,8 +22,9 @@ diag_idx = vertcat(diag_offsets{:}) + reshape(repelem([0; cumsum(K(1:end-1).^2)]
 SLmat = SLmat(:,any(SLmat(I,:),1));
 [Zmat, ZLmat] = get_degmat(Z);
 
-poly_in_basis = arrayfun(@(i) ismember(Zmat(ZLmat(i,:),:), Smat(SLmat(i,:),:), 'rows'), 1:size(idx,1), 'UniformOutput', false);
-zero_rows = find(vertcat(poly_in_basis{:})==0);
+poly_in_basis_cell = arrayfun(@(i) ismember(Zmat(ZLmat(i,:),:), Smat(SLmat(i,:),:), 'rows'), 1:size(idx,1), 'UniformOutput', false);
+poly_in_basis = vertcat(poly_in_basis_cell{:});
+zero_rows = find(poly_in_basis==0);
 
 % block-diagonal of ones, one k×k dense block per element of K
 c = repelem(1:numel(K), K);          % block id per row/col
@@ -60,13 +61,16 @@ Md = Md*diag(idx(idx_static));
 empty_cols = ~any(Mp,1);
 Mp(:, empty_cols) = [];
 Md(:, empty_cols) = [];
+
+% update the Z
 % remove empty rows
-empty_rows = ~any(Mp,2);
-Mp(empty_rows, :) = [];
-Md(empty_rows, :) = [];
+empty_rows  = ~any(Mp,2);
+remove_rows = full(empty_rows) & (~poly_in_basis);
+Mp(remove_rows, :) = [];
+Md(remove_rows, :) = [];
 % update output sparsity
 [i, j, degmat] = Z.get_tuplet;
-keep_mono = ~empty_rows;
+keep_mono = ~remove_rows;
 Z = casos.Sparsity.tuplet(lp, 1, i(keep_mono), j(keep_mono), Z.indets, degmat(keep_mono,:));
 
 % update the cone sizes
