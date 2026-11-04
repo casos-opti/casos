@@ -62,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run post-merge task
-        run: echo "PR #${{ github.event.pull_request.number }} merged into main"
+        run: echo "PR ${{ github.event.pull_request.number }} merged into main"
 
       - name: Comment badges on merged PR
         env:
