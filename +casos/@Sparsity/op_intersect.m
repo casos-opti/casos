@@ -17,7 +17,7 @@ S = casos.Sparsity;
 [cfa,cfb,degmat,indets] = expand_internal(S1,S2,S1.coeffs,S2.coeffs);
 
 % intersection of cfa and cfb
-coeffs = cfa*cfb;
+coeffs = intersect(cfa,cfb);
 
 if nargout > 1
     % return indices

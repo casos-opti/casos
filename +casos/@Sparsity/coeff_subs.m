@@ -71,11 +71,11 @@ else
     if isa(cfB,'casadi.Sparsity')
         % combine sparsity patterns
         C = repmat(sub(cfB,I-1,casadi.Sparsity.dense(ntA*ntB,1)),1,S1.numel);
-        coeffs = cfA * C;
+        coeffs = intersect(cfA,C);
     else
         % combine coefficient matrices
         C = reshape(cfB(I),ntA*ntB,1);
-        coeffs = cfA .* C;
+        coeffs = times(cfA,C);
     end
     degmat = dgA + dgB;
 end
