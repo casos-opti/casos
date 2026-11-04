@@ -4,58 +4,92 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function Lz = newton_reduce(Pdegmat,Zdegmat,solver,Lz)
+function [Z,K_red,Mp,Md,K] = newton_reduce(Lz, degmat, indets, S, I, idx, lp, Iv, solver)
 % Removes monomials outside half Newton polytope.
 %
-%   Inputs:
-%       Pdegmat - Degree matrix of polynomial basis (each row is a monomial)
-%       Zdegmat - Degree matrix of monomials to test (each row is a monomial)
-%       solver  - Solver for linear programming (e.g., 'sedumi', 'mosek')
-%       Lz      - Initial logical vector
-%
-%   Output:
-%       Lz      - Sparse logical vector indicating kept monomials
-%
-%   Strategy inspired by: "Simplification Methods for Sum-of-Squares Programs",
-%   Peter Seiler et al.
+%   Strategy inspired by: 
+%   [1] "Simplification Methods for Sum-of-Squares Programs", Peter Seiler et al.
+%   [2] "Pre- and Post-Processing Sum-of-Squares  Programs in Practice", Johan Löfberg
 
 % tolerance for feasibility
 tolerance = 1e-6;
 
-% get dimensions
-[nP, ~] = size(Pdegmat);
+% get the degree matrix of the full monomial basis S 
+[~,Ldegmat] = get_degmat(S);
+Ldegmat_red = Ldegmat(idx,:);
+
+Zdegmat = degmat;
+
+% pre-compute per-j quantities
+Lz_cell = cell(1,lp);           % will hold the reduced (kept) monomials per poly
+Pdegmat_cell = cell(1,lp);      % monomials appearing in polynomial j (in variables Iv)
+Z2_cell = cell(1,lp);           % doubled Z degree matrix (Gram monomials)
+keep_cell = cell(1,lp);         % boolean mask of monomials kept for poly j
+keep_trivial_cell = cell(1,lp); % monomials trivially kept (present in P)
+bfixed_cell = cell(1,lp);       % RHS vector for the LP constraint
+skip_j = false(1,lp);           % flag: poly j needs no reduction
+
 nZ = size(Zdegmat, 1);
 
-% pre-allocate keep array (start with provided Lz)
-keep = Lz;
-
-% check if any monomial in Zdegmat*2 matches a row in Pdegmat
-Z2 = Zdegmat * 2;
-keep_trivial = ismember(Z2, Pdegmat, 'rows');
-
-% early return if all are trivially kept
-if all(keep_trivial)
-    Lz = sparse(keep);
-    return;
+for j = 1:lp
+    % monomials of polynomial j, projected onto variables Iv
+    Pdegmat_cell{j} = S.degmat(Ldegmat_red(j,:),Iv);
+    Lz_j = Lz(j,:)';
+    
+    [nP, ~] = size(Pdegmat_cell{j});
+    
+    % initialize the keep-mask from the current Lz row
+    keep_cell{j} = Lz_j;
+    
+    % doubled degree matrix
+    Z2_cell{j} = Zdegmat * 2;
+    keep_trivial_cell{j} = ismember(Z2_cell{j}, Pdegmat_cell{j}, 'rows');
+    
+    % if every Gram monomial is trivially needed, skip this polynomial
+    if all(keep_trivial_cell{j})
+        skip_j(j) = true;
+    else
+        % constraint RHS: [0; ...; 0; 1] (last entry = normalization)
+        bfixed_cell{j} = [zeros(nP, 1); 1];
+    end
 end
 
-% fixed part of LP constraints (common for all iterations)
-bfixed = [zeros(nP, 1); 1];
-
-% pre-allocate solver structure (will be reused)
+% single flattened loop over (j, i) pairs
 Slin = [];
 
+% build the full list of (j,i) pairs to process
+[jj, ii] = ndgrid(1:lp, 1:nZ);
+jj = jj(:);
+ii = ii(:);
+
 % check remaining monomials via linear programming
-for i = 1:nZ
+for k = 1:numel(jj)
+    j = jj(k);
+    i = ii(k);
+
+    % Nothing to do for this poly or this monomial
+    if skip_j(j)
+        continue;
+    end
+
+    keep = keep_cell{j};
+    keep_trivial = keep_trivial_cell{j};
+
     % skip if already kept or trivially not kept
     if keep_trivial(i) || ~keep(i)
         continue;
     end
+
+    Pdegmat = Pdegmat_cell{j};
+    Z2 = Z2_cell{j}; 
+    bfixed = bfixed_cell{j};
+
+    [nP, ~] = size(Pdegmat);
+    q = Z2(i, :);   % doubled degree of candidate monomial i
         
-    % current monomial to test (scaled by 2)
-    q = Z2(i, :);
-        
-    % extract A matrix and b vector
+    % LP feasibility problem: does there exist a nonnegative combination
+    % of P's monomials plus q equal to the normalized constraint?
+    % A = [Pdegmat, -1; q, -1], b = [0;...;0; 1]
     A = [Pdegmat, -ones(nP, 1); q, -1]; % linear constraint matrix
     b = bfixed;                         % right-hand side
         
@@ -114,11 +148,38 @@ for i = 1:nZ
                 
         % remove violating monomials
         keep(violation) = false;
+        keep_cell{j} = keep;
     end
 
 end
 
-% return as sparse logical vector
-Lz = sparse(keep);
+% collect the reduced monomial sets per polynomial into a single matrix
+for j = 1:lp
+    Lz_cell{j} = sparse(keep_cell{j});
+end
+Lz_red = horzcat(Lz_cell{:})';
+
+% rebuild the Gram matrix factorization for the reduced basis
+[Z,K_red,Mp,Md] = gram_internal(Lz,degmat,indets,Lz_red);
+
+% post-process output sparsity: remove rows of Mp/Md that became empty,
+% unless the corresponding monomial is still part of the original SOS basis
+empty_rows  = ~any(Mp,2);
+[Smat, SLmat] = get_degmat(S,I);
+SLmat = SLmat(:,any(SLmat(I,:),1));
+[Zmat, ZLmat] = get_degmat(Z);
+poly_in_basis_cell = arrayfun(@(i) ismember(Zmat(ZLmat(i,:),:), Smat(SLmat(i,:),:), 'rows'), 1:size(idx,1), 'UniformOutput', false);
+poly_in_basis = vertcat(poly_in_basis_cell{:});
+remove_rows = full(empty_rows) & (~poly_in_basis);
+Mp(remove_rows, :) = [];
+Md(remove_rows, :) = [];
+
+% rebuild the monomial sparsity object Z with only the kept monomials
+[i, j, degmat] = Z.get_tuplet;
+keep_mono = ~remove_rows;
+Z = casos.Sparsity.tuplet(lp, 1, i(keep_mono), j(keep_mono), Z.indets, degmat(keep_mono,:));
+
+% get the original (non-pruned) psd sizes
+K = full(sum(Lz,2));
 
 end
