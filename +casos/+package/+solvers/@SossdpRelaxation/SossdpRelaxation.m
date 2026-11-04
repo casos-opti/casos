@@ -44,7 +44,7 @@ methods
 
         % default options
         if ~isfield(obj.opts,'sdpsol_options'), obj.opts.sdpsol_options = struct; end
-        if ~isfield(obj.opts,'prune'), obj.opts.prune = "zero-diagonal"; end
+        if ~isfield(obj.opts,'prune'), obj.opts.prune = "newton-polytope"; end
         if ~isfield(obj.opts,'newton_solve'), obj.opts.newton_solver = solver; end
         
         % pass options to sdpsol

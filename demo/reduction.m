@@ -28,8 +28,8 @@ opts.error_on_fail = false;
 
 % Options in monomial pruning:
 %   "none"             - no pruning
-%   "zero-diagonal"    - make use the zero diagonal algorithm for reduction (default)
-%   "newton-polytope"  - use newton polytope to reduce required monomials
+%   "zero-diagonal"    - make use the zero diagonal algorithm for reduction 
+%   "newton-polytope"  - use newton polytope to reduce required monomials (default)
 opts.prune = "zero-diagonal"; 
 
 % Build the solver
