@@ -9,6 +9,8 @@
 x = casos.PS('x', 3, 1);
 f = casos.PS.sym('f');
 
+%s = casos.PS.sym('s', monomials(x,0:6), 'gram');
+
 g = [12+x(2)^2-2*x(1)^3*x(2)+2*x(2)*x(3)^2+x(1)^6-2*x(1)^3*x(3)^2+x(3)^4+x(1)^2*x(2)^2+f;
     (x(1)-1)^2+x(1)^4+f-2;
     3*x(1)^4-2*x(1)^2*x(2)+7*x(1)^2-4*x(1)*x(2)+4*x(2)^2+f;
@@ -24,9 +26,11 @@ opts.Kc.sos = 4;
 % ignore infeasibility
 opts.error_on_fail = false;
 
-% To disable simplification:
-%   - Set opts.prune to 0
-opts.prune = 1; 
+% Options in monomial pruning:
+%   "none"             - no pruning
+%   "zero-diagonal"    - make use the zero diagonal algorithm for reduction (default)
+%   "newton-polytope"  - use newton polytope to reduce required monomials
+opts.prune = "zero-diagonal"; 
 
 % Build the solver
 tic
@@ -39,6 +43,6 @@ fprintf('sol.f = %d \n', full(sol.f)); % the value should be 1.7107
 
 % Run the solver to obtain an accurate computation time
 tsol = timeit(@()S());
-fprintf('reduction = %d \n', opts.prune);
+fprintf('reduction := %s \n', opts.prune);
 fprintf('time: %ds \n',tsol);
 disp(S.info.gram.Kc')
