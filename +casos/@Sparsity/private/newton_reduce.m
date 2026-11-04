@@ -11,6 +11,14 @@ function [Z,K_red,Mp,Md,K] = newton_reduce(Lz, degmat, indets, S, I, idx, lp, Iv
 %   [1] "Simplification Methods for Sum-of-Squares Programs", Peter Seiler et al.
 %   [2] "Pre- and Post-Processing Sum-of-Squares  Programs in Practice", Johan Löfberg
 
+% get the original (non-pruned) psd sizes
+K = full(sum(Lz,2));
+
+if isempty(K)
+    [Z,K_red,Mp,Md] = gram_internal(Lz,degmat,indets);
+    return; 
+end
+
 % tolerance for feasibility
 tolerance = 1e-6;
 
@@ -178,8 +186,5 @@ Md(remove_rows, :) = [];
 [i, j, degmat] = Z.get_tuplet;
 keep_mono = ~remove_rows;
 Z = casos.Sparsity.tuplet(lp, 1, i(keep_mono), j(keep_mono), Z.indets, degmat(keep_mono,:));
-
-% get the original (non-pruned) psd sizes
-K = full(sum(Lz,2));
 
 end
