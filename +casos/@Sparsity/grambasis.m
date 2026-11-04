@@ -9,10 +9,10 @@ function [Z,K_red,z,Mp,Md,K] = grambasis(S,I,prune,solver)
 
 if nargin < 3
     % no simplification
-    prune = false;
+    prune = "none";
 end
 
-if prune == 2 && nargin < 4
+if prune == "newton-polytope" && nargin < 4
     error('Please provide a solver to perform the Newton reduction.')
 end
 
@@ -88,30 +88,25 @@ Lz(:,~Ir) = [];
 
 % build output sparsity, cone sizes and gram basis to output sparsity mapping 
 switch prune
-    case 0
+    case "none"
         % No reduction algorithm
         [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);
         K_red = K; % no change
-    case 1
+    case "zero-diagonal"
         % Zero Diagonal Algorithm
         %
         % [1] Seiler, P.; Zheng, Q.; Balas, G. Simplification Methods 
         %     for Sum-of-Squares Programs. arXiv March 6, 2013.
         %
-        [Z,K_red,Mp,Md,K] = zero_diagonal_alg(Lz,degmat,z.indets,S,I,idx,lp);
-    case 2
+        [Z,K_red,Mp,Md,K] = zero_diagonal_alg(Lz,degmat,z.indets, S,I,idx, lp);
+    case "newton-polytope"
         % Newton Polytope Reduction
         %
         % [2] Lofberg, J. Pre- and Post-Processing Sum-of-Squares Programs 
         %     in Practice. IEEE Trans. Automat. Contr. 2009, 54 (5), 
         %     1007–1011. https://doi.org/10.1109/TAC.2009.2017144
         %
-        Ldegmat_red = Ldegmat(idx,:);
-        Lz_red = arrayfun(@(i) newton_reduce(S.degmat(Ldegmat_red(i,:),Iv),degmat,solver,Lz(i,:)'), 1:lp, 'UniformOutput', false);
-        Lz_red = horzcat(Lz_red{:})';
-        %[Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets,Lz_red);
-        [Z,K_red,Mp,Md] = gram_internal(Lz_red,degmat,z.indets);
-        K = full(sum(Lz,2));
+        [Z,K_red,Mp,Md,K] = newton_reduce(Lz, degmat, z.indets, S, I, idx, lp, Iv, solver);
     otherwise
         error('This pruning option is not valid.')
 end
