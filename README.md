@@ -27,7 +27,7 @@ SPDX-License-Identifier: GPL-3.0-only
 
 ### Quick links
 
-- [Getting started](https://github.com/casos-opti/casos/wiki#getting-started)
+- [Install latest version](https://github.com/casos-opti/casos/releases/latest)
 - Available [conic solvers](https://github.com/casos-opti/casos/wiki#conic-solvers)
 - Convex and nonconvex [sum-of-squares optimization](https://github.com/casos-opti/casos/wiki/sum%E2%80%90of%E2%80%90squares-optimization)
 - Supported [vector, matrix, and polynomial cones](https://github.com/casos-opti/casos/wiki/cones)

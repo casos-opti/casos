@@ -19,7 +19,7 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function H_reg = regularize_Hessian(H)
+function H_reg = regularize_hessian(H)
 
 % Check if the input matrix is symmetric
 if ~issymmetric(H)

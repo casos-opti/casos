@@ -51,8 +51,8 @@ nlsos_feas.f = sum(r) + lambda*Phi ;
 
 nlsos_feas.p = [nlsos.p; x_R;lambda];
 
-obj.feasRes_para.n_r = sum(I);
-obj.feasRes_para.length_dualOut = length(nlsos_feas.x)-length(nlsos_feas.g);
+obj.feas_res_para.n_r = sum(I);
+obj.feas_res_para.length_dual_out = length(nlsos_feas.x)-length(nlsos_feas.g);
 
 sosopt.sossol         = obj.opts.sossol;
 sosopt.sossol_options = obj.opts.sossol_options;

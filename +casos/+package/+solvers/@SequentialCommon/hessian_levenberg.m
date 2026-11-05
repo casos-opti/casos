@@ -20,7 +20,7 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function H_regularized = hessian_Levenberg(H)
+function H_regularized = hessian_levenberg(H)
 
 epsilon = sqrt(eps);
 
@@ -31,10 +31,10 @@ h_diag = diag(H);
 row_sum = sum(abs(H), 2);
 
 % Gershgorin bound (vectorized)
-Gershgorin_bound = h_diag - (row_sum - abs(h_diag));
+gershgorin_bound = h_diag - (row_sum - abs(h_diag));
 
 % Take the minimum Gershgorin bound
-sigma = min(Gershgorin_bound);
+sigma = min(gershgorin_bound);
 
 % Determine tau based on sigma
 if sigma > 0

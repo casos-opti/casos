@@ -50,9 +50,14 @@ elseif is_monom(S)
     S_coeffs = casadi.Sparsity.triplet(neb,neb,[jj in-1],[jj in-1]); % 0-index
 
     if ~isa(coeffs,'casadi.Sparsity')
+        % isolate nonzero entries
+        cf1 = sum1(coeffs);
+        % workaround CasADi 3.7.x: power returns dense vector
+        % sparse entries should be sparse unless zero power
+        sp = sparsity(cf1) + casadi.Sparsity.nonzeros(1,length(cf1),in);
         % take power of nonzero coefficients
-        cfa = sum1(coeffs).^deg;
-        % set zero powers to one
+        cfa = project(cf1.^deg, sp);
+        % workaround CasADi 3.6.x: set zero powers to one
         if ~isempty(in), cfa(in) = 1; end
         % cast onto reordered sparsity pattern
         coeffs = sparsity_cast(cfa,S_coeffs);

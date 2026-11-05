@@ -14,7 +14,7 @@ xi_k = args{1};
 p0   = args{2};
 
 
-Bk = eye(obj.sizeHessian(1));
+Bk = eye(obj.size_hessian(1));
 
 % initialize iteration info
 stats = cell(1,obj.opts.max_iter);
