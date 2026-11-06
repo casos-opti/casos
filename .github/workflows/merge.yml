@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: 2026 Institute of Flight Mechanics and Controls, University of Stuttgart
+# SPDX-FileCopyrightText: Author(s): Torbjørn Cunis and Renato Loureiro <tcunis@ifr.uni-stuttgart.de>
+# SPDX-FileContributor: For a full list of contributors, see <https://github.com/casos-opti/casos>
+#
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Successful merge tasks
+
+on:
+  pull_request:
+    types: [closed] # this action only acts once the PR is closed
+    branches: [main]
+
+jobs:
+  get-casadi-releases:
+    runs-on: ubuntu-latest
+    outputs:
+      releases: ${{ steps.get-releases.outputs.releases }}
+
+    steps:
+      - name: Get CasADi releases from GitHub
+        id: get-releases
+        continue-on-error: true
+        run: |
+          # Fetch 3 last releases from the CasADi repository
+          RELEASES=$(git ls-remote -t https://github.com/casadi/casadi \
+            | cut -f 2 \
+            | grep -xE 'refs/tags/[0-9]+\.[0-9]+\.[0-9]+' \
+            | sed 's|refs/tags/||' \
+            | sort -V \
+            | awk -F. '
+                { key = $1"."$2; latest[key] = $0 }
+                END { for (k in latest) print latest[k] }
+              ' \
+            | sort -V \
+            | tail -n 3 \
+            | jq -R . | jq -sc .)
+
+          # Fallback if empty
+          if [ -z "$RELEASES" ] || [ "$RELEASES" = "null" ]; then
+            RELEASES='["3.6.7","3.7.2","3.8.1"]'
+          fi
+
+          # Display the releases obtained
+          echo "All releases ${RELEASES}"
+
+          # Set outputs for other jobs to consume
+          echo "releases=${RELEASES}" >> $GITHUB_OUTPUT
+
+  on-merge:
+    # only run if the PR was actually merged (not just closed)
+    if: github.event.pull_request.merged == true
+    needs: get-casadi-releases
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run post-merge task
+        run: echo "PR ${{ github.event.pull_request.number }} merged into main"
+
+      - name: Prepend badges to merged PR description
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RELEASES: ${{ needs.get-casadi-releases.outputs.releases }}
+        run: |
+          # Build badges inline (space-separated so they render on one line)
+          BADGES=""
+          for version in $(echo "$RELEASES" | jq -r '.[]'); do
+            BADGE_URL="https://img.shields.io/badge/CasADi-${version}-green"
+            BADGES="${BADGES} ![CasADi ${version}](${BADGE_URL})"
+          done
+
+          # Get the current PR body
+          CURRENT_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body')
+
+          # Prepend badges on top, followed by a horizontal rule, then the original body
+          NEW_BODY=$(printf '%s\n\n%s' "$BADGES" "$CURRENT_BODY")
+
+          # Update the PR description
+          gh pr edit "$PR_NUMBER" --body "$NEW_BODY"
