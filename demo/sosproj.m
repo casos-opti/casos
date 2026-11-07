@@ -12,7 +12,9 @@ rng(0)
 x = casos.Indeterminates('x');
 % some random polynomial
 p = casos.PD(monomials(x,0:4),randn(5,1));
+p1 = casos.PD(monomials(x,0:4),randn(5,1));
 
+p = [p;p1];
 % Gram decision variable
 s = casos.PS.sym('q',grambasis(p));
 
@@ -23,7 +25,7 @@ e = s - p;
 %   min ||s-p||^2 s.t. s is SOS
 sos = struct('x',s,'f',dot(e,e));
 % states is scalar SOS cone
-opts = struct('Kx',struct('sos',1));
+opts = struct('Kx',struct('sos',2));
 
 % solve by relaxation to SDP
 S = casos.sossol('S','mosek',sos,opts);

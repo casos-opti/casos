@@ -63,6 +63,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         eval_Hessian;
         eval_step_norms;
         eval_termination;
+        scaled_nabla_L_inf; % for plotting
 
         % parameters
         init_para;

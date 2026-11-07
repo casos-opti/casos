@@ -279,11 +279,18 @@ gl_val  = casadi.SX.sym('gl');  % dual
 dxi_val = casadi.SX.sym('dxi'); % search direction
 tol_val = casadi.SX.sym('tol'); % tolerance
 
-% one function for all termination criteria
+% one function for all termination criteria (compute scaled termination
+% criteria)
 obj.eval_termination = casadi.Function('f',{f_val,gln_val,gl_val,dxi_val,tol_val}, ...
     {(tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, ...   % lagrange derivative 
     (10*tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, ... % lagrange derivative  (relaxed)
-     tol_val*fmax(1,gl_val)});                             
+     tol_val*fmax(1,gl_val)});          
+
+nabla_L_val_inf = casadi.SX.sym('nL');   % value of lagrange function derivative
+
+% store the scaled lagrange derivative (for plotting over iterations)
+obj.scaled_nabla_L_inf = casadi.Function('f',{f_val,gln_val,gl_val,dxi_val, nabla_L_val_inf}, ...
+    { nabla_L_val_inf*dxi_val/(fmax(1,abs(f_val)) + gln_val)});    
 
 % directional derivative of the cost along the search direction
 x_star_dir = casos.PS.sym('x_star',base_x);

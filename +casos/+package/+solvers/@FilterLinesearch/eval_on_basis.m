@@ -209,6 +209,9 @@ while iter <= obj.opts.max_iter
     opt_thres_10x  = full(opt_thres_10x);
     opt_thres_self = full(opt_thres_self);
 
+    % compute the scaled nabla_L (for plotting over iterations)
+    scaled_gradLag_k = full(obj.scaled_nabla_L_inf(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, gradLag_k));
+
     % display output current iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
         iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , gradLag_k   );
@@ -220,6 +223,8 @@ while iter <= obj.opts.max_iter
     stats.single_iterations{iter}.max_con_vio  = theta_x_k;
     stats.single_iterations{iter}.step_length  = alpha_k;
     stats.single_iterations{iter}.d_ldx        = gradLag_k;
+    stats.single_iterations{iter}.scaled_d_ldx = scaled_gradLag_k;
+    
    
     % store counter of current iterate
     stats.single_iterations{iter}.counter_restoration_calls = counter_restoration_calls; 

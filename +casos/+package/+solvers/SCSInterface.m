@@ -52,6 +52,13 @@ methods (Access=protected)
         opts = obj.opts.scs;
         % disable verbosity by default
         if ~isfield(opts,'verbose'), opts.verbose = 0; end
+
+        % opts.use_qdldl = true;      % bundled QDLDL sparse direct solver
+        % opts.use_indirect = true;    % conjugate gradient (iterative)
+        opts.dense = true;           % dense Cholesky (for dense A)
+        % settings.gpu = true;             % cuDSS GPU direct solver (source build)
+
+        opts.verbose = 0;
         
         % remove P if all entries are sparse
         % see: https://www.cvxgrp.org/scs/api/matrices.html 

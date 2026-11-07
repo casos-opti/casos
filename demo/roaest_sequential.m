@@ -47,6 +47,7 @@ p = x'*x;
 opts = struct('sossol','mosek');
 opts.verbose = 1;
 opts.hessian_approx = 'mirroring';
+opts.con_vio_check = 'projection';  'signed-distance';
 % opts.hessian_init   = 'identity';
 % opts.scale_bfgs0    = 1e-3;
 
@@ -71,7 +72,7 @@ S = casos.nlsossol('S','sequential',sos,opts);
 
 
 %% Solve nonlinear problem
-sol = S('x0',[Vinit; (x'*x); x'*x; 0.1]); 
+sol = S('x0',casos.PD([Vinit; (x'*x); x'*x; 0.1])); 
 
 %% Plot results
 % Lyapunov function
