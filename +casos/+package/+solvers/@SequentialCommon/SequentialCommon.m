@@ -165,12 +165,12 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
             if ~isfield(obj.opts,'enable_soc'), obj.opts.enable_soc                             = true; end
 
             % structure with parameter for filter
-            if ~isfield(obj.opts,'filter_struct'), obj.opts.filter_struct                             = struct; end
+            if ~isfield(obj.opts,'filter_struct'), obj.opts.filter_struct                                 = struct; end
             if ~isfield(obj.opts.filter_struct,'alpha_max'),       obj.opts.filter_struct.alpha_max       = 1; end
             if ~isfield(obj.opts.filter_struct,'s_theta'),         obj.opts.filter_struct.s_theta         = 1.1; end
             if ~isfield(obj.opts.filter_struct,'s_phi'),           obj.opts.filter_struct.s_phi           = 2.3; end
             if ~isfield(obj.opts.filter_struct,'gamma_theta'),     obj.opts.filter_struct.gamma_theta     = 1e-5; end
-            if ~isfield(obj.opts.filter_struct,'gamma_phi'),       obj.opts.filter_struct.gamma_phi        = 1e-5; end
+            if ~isfield(obj.opts.filter_struct,'gamma_phi'),       obj.opts.filter_struct.gamma_phi       = 1e-5; end
             if ~isfield(obj.opts.filter_struct,'gamma_alpha'),     obj.opts.filter_struct.gamma_alpha     = 0.05; end
             if ~isfield(obj.opts.filter_struct,'delta'),           obj.opts.filter_struct.delta           = 0.8; end
             if ~isfield(obj.opts.filter_struct,'eta'),             obj.opts.filter_struct.eta             = 1e-4; end

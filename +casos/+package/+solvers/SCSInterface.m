@@ -24,9 +24,39 @@ methods
     function obj = SCSInterface(name,conic,varargin)
         % Construct SCS interface.
         obj@casos.package.solvers.AbstractSCSInterface(name,conic,varargin{:});
+        
+        if ~isfield(obj.opts, 'scs')
+            obj.opts.scs = struct;
+        end
 
-        % default options
-        if ~isfield(obj.opts,'scs'), obj.opts.scs = []; end
+
+        % default options see https://www.cvxgrp.org/scs/api/settings.html
+        if ~isfield(obj.opts.scs,'verbose'), obj.opts.scs.verbose = 0; end
+        if ~isfield(obj.opts.scs,'use_qdldl'), obj.opts.scs.use_qdldl = 1; end
+        if ~isfield(obj.opts.scs,'use_indirect'), obj.opts.scs.use_indirect = 0; end
+        if ~isfield(obj.opts.scs,'dense'), obj.opts.scs.dense = 0; end
+        if ~isfield(obj.opts.scs,'gpu'), obj.opts.scs.gpu = 0; end
+        if ~isfield(obj.opts.scs,'normalize'), obj.opts.scs.normalize = 1; end
+        if ~isfield(obj.opts.scs,'scale'), obj.opts.scs.scale = 0.1; end
+        if ~isfield(obj.opts.scs,'adaptive_scale'), obj.opts.scs.adaptive_scale = 1; end
+        if ~isfield(obj.opts.scs,'adaptive_diag_scale'), obj.opts.scs.adaptive_diag_scale = 1; end
+        if ~isfield(obj.opts.scs,'rho_x'), obj.opts.scs.rho_x = 1e-6; end
+        if ~isfield(obj.opts.scs,'max_iters'), obj.opts.scs.max_iters = 1e5; end
+        if ~isfield(obj.opts.scs,'eps_abs'), obj.opts.scs.eps_abs = 1e-4; end
+        if ~isfield(obj.opts.scs,'eps_rel'), obj.opts.scs.eps_rel = 1e-4; end
+        if ~isfield(obj.opts.scs,'eps_infeas'), obj.opts.scs.eps_infeas = 1e-7; end
+        if ~isfield(obj.opts.scs,'alpha'), obj.opts.scs.alpha = 1.5; end
+        if ~isfield(obj.opts.scs,'time_limit_secs'), obj.opts.scs.time_limit_secs = 0; end
+        if ~isfield(obj.opts.scs,'warm_start'), obj.opts.scs.warm_start = 0; end
+        if ~isfield(obj.opts.scs,'acceleration_lookback'), obj.opts.scs.acceleration_lookback = 10; end
+        if ~isfield(obj.opts.scs,'acceleration_interval'), obj.opts.scs.acceleration_interval = 5; end
+        if ~isfield(obj.opts.scs,'acceleration_type_1'), obj.opts.scs.acceleration_type_1 = 1; end
+        if ~isfield(obj.opts.scs,'acceleration_regularization'), obj.opts.scs.acceleration_regularization = 1e-8; end
+        if ~isfield(obj.opts.scs,'acceleration_relaxation'), obj.opts.scs.acceleration_relaxation = 1.0; end
+        % char* settings default to NULL, i.e. not set (empty char in MATLAB)
+        if ~isfield(obj.opts.scs,'write_data_filename'), obj.opts.scs.write_data_filename = ''; end
+        if ~isfield(obj.opts.scs,'log_csv_filename'), obj.opts.scs.log_csv_filename = ''; end
+
     end
 
     function s = info(obj)
@@ -50,16 +80,7 @@ methods (Access=protected)
 
         % options to SCS
         opts = obj.opts.scs;
-        % disable verbosity by default
-        if ~isfield(opts,'verbose'), opts.verbose = 0; end
 
-        % opts.use_qdldl = true;      % bundled QDLDL sparse direct solver
-        % opts.use_indirect = true;    % conjugate gradient (iterative)
-        opts.dense = true;           % dense Cholesky (for dense A)
-        % settings.gpu = true;             % cuDSS GPU direct solver (source build)
-
-        opts.verbose = 0;
-        
         % remove P if all entries are sparse
         % see: https://www.cvxgrp.org/scs/api/matrices.html 
         if nnz(data.P) == 0, data = rmfield(data, 'P'); end
