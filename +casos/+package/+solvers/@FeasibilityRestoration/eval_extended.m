@@ -9,7 +9,6 @@ function [sol_iter,sol,filter_glob,feasibility_flag,stats_glob] = eval_extended(
 % original parameter
 p00 = p0;
 
-
 % parameter for feasibility restoration: actual parameter and iterate where
 % the restoration was/is invoked
 p0 = [p00; x_R;0];
