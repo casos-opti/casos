@@ -128,11 +128,15 @@ while iter <= obj.opts.max_iter
     if feas_res_flag == 1
         % QP  of feasibility restoration is also infeasible --> Problem
         % seems infeasible
-        feasibility_flag = 0;
+        feasibility_flag = -1;
         break
     elseif feas_res_flag == 2
         % alpha below alpha min i.e. solver stalled
-        feasibility_flag = -1;
+        feasibility_flag = -2;
+        break
+    elseif feas_res_flag == 3
+        % numerical issues in constraint violation check
+        feasibility_flag = -3;
         break
     else
 

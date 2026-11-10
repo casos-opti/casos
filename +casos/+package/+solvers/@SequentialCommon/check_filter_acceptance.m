@@ -14,7 +14,7 @@
 % constrain violation, than accept.
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function  [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,all_violations] = check_filter_acceptance(obj, ...
+function  [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,all_violations,status_flag] = check_filter_acceptance(obj, ...
     linesearch_filter, ...
     alpha, ...
     x_k, ...
@@ -24,8 +24,14 @@ function  [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,all_violations] = check_fil
     p0, ...
     args)
 
+import casos.package.UnifiedReturnStatus
+
 % use Langrange function instead of cost function in filter
 lagrange_filter = obj.opts.filter_struct.lagrange_filter;
+
+
+% we are good to go
+status_flag = 1;
 
 if strcmpi(obj.opts.con_vio_check,'signed-distance')
 
@@ -55,9 +61,29 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
     args_con_vio{7} = [];
 
     sol_con_vio = eval_on_basis(obj.solver_con_vio, args_con_vio);
+    
+    %% check solution status
+    switch (obj.solver_con_vio.get_stats.UNIFIED_RETURN_STATUS)
+
+        case UnifiedReturnStatus.SOLVER_RET_SUCCESS    % optimal solution found
+            
+            sos_violation = sol_con_vio{1};
+            status_flag = 1;
+        % case UnifiedReturnStatus.SOLVER_RET_UNKNOWN    % feasible solution but not optimal
+        % 
+        % 
+        %     sos_violation = sol_con_vio{1};
+
+        otherwise
+            % something went wrong
+            sos_violation = sol_con_vio{1};
+            status_flag = 0;
+
+    end
+
 
     % extract signed-distances
-    all_violations = [sol_con_vio{1}; lin_violation];
+    all_violations = [sos_violation; lin_violation];
 
     % get the largest one
     theta_x_k1 = full(max(0,max(all_violations)));

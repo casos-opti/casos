@@ -387,8 +387,9 @@ while iter <= obj.opts.max_iter
             feasibility_flag = 1;
 
         else
-            % stalled
-            feasibility_flag = -2;
+
+            % already feasible
+            feasibility_flag = -4;
 
         end
 
@@ -522,7 +523,7 @@ elseif feasibility_flag == -1 && iter < obj.opts.max_iter
 
 
     printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
-    printf(obj.log,'debug','Solution status: Solver stalled in feasibility restoration.\n');
+    printf(obj.log,'debug','Solution status: Solver stalled in feasibility restoration (infeasible SDP).\n');
     measSolveTime = toc(t_solve);
     printf(obj.log,'debug',['Solution time: ' num2str(measSolveTime) ' s\n']);
     printf(obj.log,'debug',['Build time: ' num2str(obj.display_para.solver_build_time) ' s\n']);
@@ -530,11 +531,49 @@ elseif feasibility_flag == -1 && iter < obj.opts.max_iter
 
     stats.solution_status = 'Solver stalled';
     obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
-    
+
 elseif feasibility_flag == -2 && iter < obj.opts.max_iter
 
+
+    % print last iterate
+    printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , gradLag_k   );
+
+
     printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
-    printf(obj.log,'debug','Solution status: Feasible solution. Restoration not invoked because already feasible.\n');
+    printf(obj.log,'debug','Solution status: Solver stalled in feasibility restoration (below min. step-length).\n');
+    measSolveTime = toc(t_solve);
+    printf(obj.log,'debug',['Solution time: ' num2str(measSolveTime) ' s\n']);
+    printf(obj.log,'debug',['Build time: ' num2str(obj.display_para.solver_build_time) ' s\n']);
+    printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+measSolveTime) ' s\n']);
+
+    stats.solution_status = 'Solver stalled';
+    obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
+
+elseif feasibility_flag == -3 && iter < obj.opts.max_iter
+
+
+    % print last iterate
+    printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , gradLag_k   );
+
+
+    printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
+    printf(obj.log,'debug','Solution status: Solver stalled in feasibility restoration (numerical problems).\n');
+    measSolveTime = toc(t_solve);
+    printf(obj.log,'debug',['Solution time: ' num2str(measSolveTime) ' s\n']);
+    printf(obj.log,'debug',['Build time: ' num2str(obj.display_para.solver_build_time) ' s\n']);
+    printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+measSolveTime) ' s\n']);
+
+    stats.solution_status = 'Solver stalled';
+    obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
+
+
+    
+elseif feasibility_flag == -4 && iter < obj.opts.max_iter
+
+    printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
+    printf(obj.log,'debug','Solution status: Restoration not invoked because already feasible.\n');
     measSolveTime = toc(t_solve);
     printf(obj.log,'debug',['Solution time: ' num2str(measSolveTime) ' s\n']);
     printf(obj.log,'debug',['Build time: ' num2str(obj.display_para.solver_build_time) ' s\n']);
@@ -549,7 +588,7 @@ stats.single_iterations = stats.single_iterations(1:iter);
 
 stats.total_solve_time    = measSolveTime;
 stats.solver_build_time   = obj.display_para.solver_build_time;
-stats.iterations        = iter-1; % we do not count the initial guess
+stats.iterations          = iter-1; % we do not count the initial guess
 stats.time_per_iteration  = stats.total_solve_time/stats.iterations;
 
 % assign output

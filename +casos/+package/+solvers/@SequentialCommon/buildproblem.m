@@ -114,7 +114,9 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
     if isfield(sosopt.Kc, 'lin')
         sosopt.Kc = rmfield(sosopt.Kc, 'lin');
     end
-    sosopt.error_on_fail = true;
+
+    % we do our own check during the iterations
+    sosopt.error_on_fail = false;
 
     % initialize convex SOS solver
     obj.solver_con_vio = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_con_vio,sosopt);

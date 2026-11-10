@@ -43,9 +43,18 @@ while true
     dkl  = (dual_star-dual_k);
 
     % check filter acceptance
-    [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,constraint_violation] = check_filter_acceptance(obj,linesearch_filter,alpha,x_k,dual_k,dk,dkl,p0,args);
+    [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,constraint_violation,status_flag_conVio] = check_filter_acceptance(obj,linesearch_filter,alpha,x_k,dual_k,dk,dkl,p0,args);
 
     dual_k1 = dual_k + alpha*(dual_star-dual_k);
+    
+    % check if something went wrong during e.g. signed-distance
+    if ~status_flag_conVio
+        % ensure we add this point to filter, so we do not get their again
+        f_type = 0;
+        armijo = 0;
+        feas_res_flag = 3;
+        break
+    end
 
     if lagrange_filter
         L_k1= full(obj.L(x_k1,p0,dual_k1));
@@ -111,8 +120,9 @@ while true
 end % end of backtracking linesearch
 
 
+
 % only augment if new iterate is accepted and either f-type or armijo are not fulfilled
-if suff_decrease_flag && (~f_type || ~armijo)
+if  (~f_type || ~armijo)
 
     if lagrange_filter
         % augment filter with a small margin
@@ -125,6 +135,7 @@ if suff_decrease_flag && (~f_type || ~armijo)
 end
 
 
+
 % output of current iterate
 sol_iter.x_k1       = x_k1;
 sol_iter.dual_k1    = dual_k1;
@@ -134,8 +145,8 @@ sol_iter.alpha_k    = alpha;
 sol_iter.dual_qp    = dual_star;
 stats{iter}.constraint_violation = constraint_violation;
 
-% we only support BFGS because we have acutally a linear cost + a quadratic
-% term; other methods faild in the past
+% we only support BFGS because we have actually a linear cost + a quadratic
+% term; other methods failed in the past
 Bk = damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter);
 
 
