@@ -13,7 +13,6 @@
 %
 % Inputs:
 %   H   - (n x n) Hessian matrix (must be symmetric)
-%   tau - Regularization parameter (small positive scalar, e.g., 1e-6)
 %
 % Output:
 %   H_reg - Regularized positive definite Hessian matrix

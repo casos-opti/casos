@@ -159,7 +159,7 @@ elseif strcmpi(obj.opts.con_vio_check,'projection')
     sosopt_proj               = opts.sossol_options;
     sosopt_proj.Kx            = struct('sos',length(s_proj));
 
-    sosopt_proj.error_on_fail = true;
+    sosopt_proj.error_on_fail = false;
 
     % initialize convex SOS solver
     obj.solver_con_vio = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_proj,sosopt_proj);
@@ -255,12 +255,16 @@ obj.eval_r = casos.Function('f',{B,theta,y,s}, {theta*y+(1-theta)*B*s});
 obj.damped_bfgs =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
 
 %% evaluation functions
+
 % nonlinear cost function
 obj.eval_cost      = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { full(nlsos.f) });
+
 % gradient cost
 obj.eval_gradCost  = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { op2basis( Df ) });
+
 % norm gradient langrangian
 obj.eval_gradLag =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dLdx0,inf ) });
+
 % inf-norm of lambda*constraint
 obj.eval_gradLag_inf_norm  =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dot(lam_gs,nlsos.g),inf) });
 
@@ -276,7 +280,7 @@ obj.eval_step_norms = casadi.Function('f',{xk_step,xk1_step,dk_step,dk1_step}, .
 
 % thresholds of the first-order optimality termination checks
 f_val   = casadi.SX.sym('f');   % cost
-gln_val = casadi.SX.sym('gln'); % constraints
+gln_val = casadi.SX.sym('gln'); % ||lambda*constraints||_inf
 gl_val  = casadi.SX.sym('gl');  % dual
 dxi_val = casadi.SX.sym('dxi'); % search direction
 tol_val = casadi.SX.sym('tol'); % tolerance
