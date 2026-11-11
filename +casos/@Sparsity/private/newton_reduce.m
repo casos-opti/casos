@@ -4,7 +4,7 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K_red,Mp,Md,K] = newton_reduce(Lz, degmat, indets, S, I, idx, lp, Iv, solver)
+function [Z,K_red,Mp,Md,info] = newton_reduce(Lz, degmat, indets, S, I, idx, lp, Iv, solver)
 % Removes monomials outside half Newton polytope.
 %
 %   Strategy inspired by: 
@@ -16,8 +16,11 @@ K = full(sum(Lz,2));
 
 if isempty(K)
     [Z,K_red,Mp,Md] = gram_internal(Lz,degmat,indets);
+    info = struct('gram_reduced', K_red, 'gram_original', K_red, 'iterations', 0, 'time', 0);
     return; 
 end
+
+start_time = tic;
 
 % tolerance for feasibility
 tolerance = 1e-6;
@@ -69,6 +72,9 @@ Slin = [];
 [jj, ii] = ndgrid(1:lp, 1:nZ);
 jj = jj(:);
 ii = ii(:);
+
+% counter for the number of LPs solved in the newton polytope reduction
+lp_counter = 0;
 
 % check remaining monomials via linear programming
 for k = 1:numel(jj)
@@ -132,6 +138,8 @@ for k = 1:numel(jj)
                    'lbx', [-inf(n_x, 1); zeros(n_s+1, 1)],  ...
                    'ubx', inf,                              ...
                    'x0',  sparse(size(a, 2), 1));
+        % increase counter by 1
+        lp_counter = lp_counter+1;
     catch ME
         % Solver failed
         error('Solver failed during newton Polytope reduction: %s', ME.message)
@@ -186,5 +194,12 @@ Md(remove_rows, :) = [];
 [i, j, degmat] = Z.get_tuplet;
 keep_mono = ~remove_rows;
 Z = casos.Sparsity.tuplet(lp, 1, i(keep_mono), j(keep_mono), Z.indets, degmat(keep_mono,:));
+
+% get time spent on the newton polytope reduction
+reduction_time = toc(start_time);
+
+% create info structure 
+info = struct('gram_reduced', K_red, 'gram_original', K, 'lp_solved', lp_counter, 'time', reduction_time);
+
 
 end

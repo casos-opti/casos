@@ -4,7 +4,7 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K_red,z,Mp,Md,K] = grambasis(S,I,grambasis_reduction,solver)
+function [Z,K,z,Mp,Md,reduction_info] = grambasis(S,I,grambasis_reduction,solver)
 % Return Gram basis of polynomial vector.
 
 if nargin < 3
@@ -91,14 +91,13 @@ switch grambasis_reduction
     case "none"
         % No reduction algorithm
         [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);
-        K_red = K; % no change
     case "zero-diagonal"
         % Zero Diagonal Algorithm
         %
         % [1] Seiler, P.; Zheng, Q.; Balas, G. Simplification Methods 
         %     for Sum-of-Squares Programs. arXiv March 6, 2013.
         %
-        [Z,K_red,Mp,Md,K] = zero_diagonal_alg(Lz,degmat,z.indets, S,I,idx, lp);
+        [Z,K,Mp,Md,reduction_info] = zero_diagonal_alg(Lz,degmat,z.indets,S,I,idx,lp);
     case "newton-polytope"
         % Newton Polytope Reduction
         %
@@ -106,10 +105,13 @@ switch grambasis_reduction
         %     in Practice. IEEE Trans. Automat. Contr. 2009, 54 (5), 
         %     1007–1011. https://doi.org/10.1109/TAC.2009.2017144
         %
-        [Z,K_red,Mp,Md,K] = newton_reduce(Lz, degmat, z.indets, S, I, idx, lp, Iv, solver);
+        [Z,K,Mp,Md,reduction_info] = newton_reduce(Lz,degmat,z.indets,S,I,idx,lp,Iv,solver);
     otherwise
         error('This pruning option is not valid.')
 end
+
+% set structure that contains info about the reduction
+reduction_info.grambasis_reduction = grambasis_reduction;
 
 % build half-basis for each element
 [i,j] = find(Lz');

@@ -4,12 +4,17 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K_red,Mp,Md,K] = zero_diagonal_alg(Lz, degmat, indets, S, I, idx, lp)
+function [Z,K_red,Mp,Md,info] = zero_diagonal_alg(Lz, degmat, indets, S, I, idx, lp)
 
 [Z,K,Mp,Md] = gram_internal(Lz,degmat,indets);
 K_red = K;
 
-if isempty(K); return; end
+if isempty(K)
+    info = struct('gram_reduced', K_red, 'gram_original', K_red, 'iterations', 0, 'time', 0);
+    return; 
+end
+
+start_time = tic;
 
 % indexes for later update of monomial basis
 [col_idx,row_idx] = find(Lz'==1);
@@ -75,5 +80,10 @@ Z = casos.Sparsity.tuplet(lp, 1, i(keep_mono), j(keep_mono), Z.indets, degmat(ke
 
 % update the cone sizes
 K_red = full(sum(Lz,2));
+
+reduction_time = toc(start_time);
+
+% create info structure 
+info = struct('gram_reduced', K_red, 'gram_original', K, 'iterations', iter, 'time', reduction_time);
 
 end
