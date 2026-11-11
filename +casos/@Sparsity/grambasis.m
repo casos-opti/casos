@@ -4,15 +4,15 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K_red,z,Mp,Md,K] = grambasis(S,I,prune,solver)
+function [Z,K_red,z,Mp,Md,K] = grambasis(S,I,grambasis_reduction,solver)
 % Return Gram basis of polynomial vector.
 
 if nargin < 3
     % no simplification
-    prune = "none";
+    grambasis_reduction = "none";
 end
 
-if prune == "newton-polytope" && nargin < 4
+if grambasis_reduction == "newton-polytope" && nargin < 4
     error('Please provide a solver to perform the Newton reduction.')
 end
 
@@ -87,7 +87,7 @@ degmat = z.degmat(Ir,:);
 Lz(:,~Ir) = [];
 
 % build output sparsity, cone sizes and gram basis to output sparsity mapping 
-switch prune
+switch grambasis_reduction
     case "none"
         % No reduction algorithm
         [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);

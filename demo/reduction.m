@@ -30,7 +30,7 @@ opts.error_on_fail = false;
 %   "none"             - no pruning
 %   "zero-diagonal"    - make use the zero diagonal algorithm for reduction 
 %   "newton-polytope"  - use newton polytope to reduce required monomials (default)
-opts.prune = "zero-diagonal"; 
+opts.grambasis_reduction = "zero-diagonal"; 
 
 % Build the solver
 tic
@@ -43,6 +43,7 @@ fprintf('sol.f = %d \n', full(sol.f)); % the value should be 1.7107
 
 % Run the solver to obtain an accurate computation time
 tsol = timeit(@()S());
-fprintf('reduction := %s \n', opts.prune);
+fprintf('reduction: %s \n', opts.grambasis_reduction);
 fprintf('time: %ds \n',tsol);
+fprintf('Gram basis sizes:\n')
 disp(S.info.gram.Kc')
