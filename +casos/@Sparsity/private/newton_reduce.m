@@ -160,7 +160,7 @@ for k = 1:numel(jj)
         % find monomials that violate the hyperplane inequality
         % 2*z*a <= b1  ->  check if 2*z*a - x_sol(end) > 0
         b1 = full(sol.x(n_x));
-        violation = Z2 * x_sol - b1 > 0;
+        violation = Z2 * x_sol - b1 > tolerance; % strict inequality from MATLAB performed sme false positives
                 
         % remove violating monomials
         keep(violation) = false;
