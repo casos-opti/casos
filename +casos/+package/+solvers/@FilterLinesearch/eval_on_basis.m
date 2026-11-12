@@ -203,6 +203,7 @@ while iter <= obj.opts.max_iter
     end
 
     % evaluate first-order optimality and termination thresholds once per iterate
+    t_KKT_con = tic;
     gradLag_k = full(obj.eval_gradLag(x_k,p0,dual_k));
     [opt_thres,opt_thres_10x,opt_thres_self] = obj.eval_termination(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, obj.opts.tolerance_opt);
     opt_thres      = full(opt_thres);
@@ -211,6 +212,8 @@ while iter <= obj.opts.max_iter
 
     % compute the scaled nabla_L (for plotting over iterations)
     scaled_gradLag_k = full(obj.scaled_nabla_L_inf(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, gradLag_k));
+
+    stats.single_iterations{iter}.time_stats.eval_kkt_con_time = toc(t_KKT_con);
 
     % display output current iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
