@@ -161,6 +161,9 @@ feasibility_flag          = 1;
 % counter how often feasibility restoration is called
 counter_restoration_calls = 0;
 
+% flag to indicate that the maximum solve time was reached
+time_limit_reached = false;
+
 
 
 % first entry is the initialization step i.e. at initialization 
@@ -439,6 +442,14 @@ while iter <= obj.opts.max_iter
     % increase iteration counter
     iter = iter + 1;
 
+
+    % at the end of the loop, check solve time
+    if toc(t_solve) >= obj.opts.max_time && iter <= obj.opts.max_iter
+        % abort: maximum solve time reached
+        time_limit_reached = true;
+        break
+    end
+
 end % end of while loop
 
 % evaluate first-order optimality and termination threshold once for the final iterate
@@ -446,10 +457,10 @@ gradLag_k = full(obj.eval_gradLag(x_k,p0,dual_k));
 [~,~,opt_thres_self] = obj.eval_termination(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, obj.opts.tolerance_opt);
 opt_thres_self = full(opt_thres_self);
 
-% maximum number of iterations exhausted: store the last iterate (index
-% max_iter+1 corresponds to iteration max_iter); its work statistics are
-% already stored by the last loop pass
-if iter > obj.opts.max_iter
+% maximum number of iterations or maximum solve time reached: store the last
+% iterate (index iter corresponds to iteration iter-1); its work statistics
+% are already stored by the last loop pass
+if iter > obj.opts.max_iter || time_limit_reached
     stats.single_iterations{iter}.iter         = iter-1;
     stats.single_iterations{iter}.cost         = f_x_k;
     stats.single_iterations{iter}.max_con_vio  = theta_x_k;
@@ -497,11 +508,50 @@ if iter >= obj.opts.max_iter
 
         stats.solution_status = 'Max. Iterations';
         obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
-       
+
+    end
+
+elseif time_limit_reached
+
+    % display output header
+    if ~mod(iter,10) && iter > 0
+        printf(obj.log,'debug','%-8s%-15s%-15s%-15s%-15s%-10s%-10s\n', 'iter', 'obj', ['||' char(916) 'x'  '||_inf'], ['||' char(916) char(955)  '||_inf'], [char(920) '(x_k)'],char(945),'||dLdx||');
+        printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
+    end
+
+    % display output current iterate
+    printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...
+        iter-1, f_x_k , delta_xi_double, delta_dual_double, theta_x_k , alpha_k , gradLag_k   );
+
+    if gradLag_k <= opt_thres_self ...
+            && theta_x_k <= obj.opts.tolerance_con && feasibility_flag == 0
+
+        printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
+        printf(obj.log,'debug','Solution status: Optimal solution found\n');
+        measSolveTime = toc(t_solve);
+        printf(obj.log,'debug',['Solution time: ' num2str(measSolveTime) ' s\n']);
+        printf(obj.log,'debug',['Build time: ' num2str(obj.display_para.solver_build_time) ' s\n']);
+        printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+measSolveTime) ' s\n']);
+
+        stats.solution_status = 'Optimal Solution';
+        obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_SUCCESS;
+
+    else
+
+        printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
+        printf(obj.log,'debug','Solution status: Maximum solve time reached\n');
+        measSolveTime = toc(t_solve);
+        printf(obj.log,'debug',['Solution time: ' num2str(measSolveTime) ' s\n']);
+        printf(obj.log,'debug',['Build time: ' num2str(obj.display_para.solver_build_time) ' s\n']);
+        printf(obj.log,'debug',['Total time: ' num2str(obj.display_para.solver_build_time+measSolveTime) ' s\n']);
+
+        stats.solution_status = 'Max. Time';
+        obj.status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
+
     end
 end
 
-if feasibility_flag == 0 && iter < obj.opts.max_iter
+if feasibility_flag == 0 && iter < obj.opts.max_iter && ~time_limit_reached
 
     % print last iterate
     printf(obj.log,'debug','%-8d%-15e%-15e%-15e%-15e%-10f%-10e\n',...

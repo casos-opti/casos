@@ -19,6 +19,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
             'hessian_init','Method to initialize Hessian.'
             'hessian_approx','Hessian (Lagrangian) approximation method'
             'max_iter', 'Maximum number of iterations.'
+            'max_time','Maximum allowed solve time.'
             'almost_opt_count','Number of iterations to check for almost optimal. '
             'feasibility_restoration','Control cost function of feasibility restoration.'
             'con_vio_check','Select method for constraint violation check'
@@ -179,7 +180,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
             
             % maximum number of iterations
             if ~isfield(obj.opts,'max_iter'), obj.opts.max_iter                                 = 100; end
-
+            if ~isfield(obj.opts,'max_time'), obj.opts.max_time                                 = 3600; end
             % counter to check if we are close/almost optimal 
             % (in case of less progress for almost_opt_count iterations)
             if ~isfield(obj.opts,'almost_opt_count'), obj.opts.almost_opt_count                 = 10; end
