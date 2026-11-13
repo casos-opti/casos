@@ -4,16 +4,23 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K,z,Mp,Md,reduction_info] = grambasis(S,I,grambasis_reduction,solver)
+function [Z,K,z,Mp,Md,reduction_info] = grambasis(S,I,opts)
 % Return Gram basis of polynomial vector.
 
 if nargin < 3
-    % no simplification
-    grambasis_reduction = "none";
+    % no options
+    opts = struct;
+else
+    % assert that all options exist
+    check(casos.Sparsity.grambasis_options, opts);
 end
 
-if grambasis_reduction == "newton-polytope" && nargin < 4
-    error('Please provide a solver to perform the Newton reduction.')
+% default options
+if ~isfield(opts,'reduction'), opts.reduction = 'none'; end
+if ~isfield(opts,'solver'), opts.solver = ''; end
+
+if strcmp(opts.reduction, 'newton-polytope') && isempty(opts.solver)
+    error('No solver provided for Newton reduction.')
 end
 
 if nargin < 2 || isempty(I)
@@ -87,31 +94,34 @@ degmat = z.degmat(Ir,:);
 Lz(:,~Ir) = [];
 
 % build output sparsity, cone sizes and gram basis to output sparsity mapping 
-switch grambasis_reduction
-    case "none"
-        % No reduction algorithm
+switch (opts.reduction)
+    case {'none'}
+        % no reduction algorithm
         [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);
-    case "zero-diagonal"
+
+    case {'zero-diagonal'}
         % Zero Diagonal Algorithm
         %
         % [1] Seiler, P.; Zheng, Q.; Balas, G. Simplification Methods 
         %     for Sum-of-Squares Programs. arXiv March 6, 2013.
         %
         [Z,K,Mp,Md,reduction_info] = zero_diagonal_alg(Lz,degmat,z.indets,S,I,idx,lp);
-    case "newton-polytope"
+
+    case {'newton-polytope'}
         % Newton Polytope Reduction
         %
         % [2] Lofberg, J. Pre- and Post-Processing Sum-of-Squares Programs 
         %     in Practice. IEEE Trans. Automat. Contr. 2009, 54 (5), 
         %     1007–1011. https://doi.org/10.1109/TAC.2009.2017144
         %
-        [Z,K,Mp,Md,reduction_info] = newton_reduce(Lz,degmat,z.indets,S,I,idx,lp,Iv,solver);
+        [Z,K,Mp,Md,reduction_info] = newton_reduce(Lz,degmat,z.indets,S,I,idx,lp,Iv,opts.solver);
+
     otherwise
-        error('This pruning option is not valid.')
+        error('No option "%s" for Gram basis reduction.', opts.reduction)
 end
 
 % set structure that contains info about the reduction
-reduction_info.algorithm = grambasis_reduction;
+reduction_info.algorithm = opts.reduction;
 
 % build half-basis for each element
 [i,j] = find(Lz');
