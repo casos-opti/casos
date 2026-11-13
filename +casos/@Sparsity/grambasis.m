@@ -4,12 +4,23 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K,z,Mp,Md] = grambasis(S,I,newton_solver)
+function [Z,K,z,Mp,Md,reduction_info] = grambasis(S,I,opts)
 % Return Gram basis of polynomial vector.
 
 if nargin < 3
-    % no Newton simplification
-    newton_solver = '';
+    % no options
+    opts = struct;
+else
+    % assert that all options exist
+    check(casos.Sparsity.grambasis_options, opts);
+end
+
+% default options
+if ~isfield(opts,'reduction'), opts.reduction = 'none'; end
+if ~isfield(opts,'solver'), opts.solver = ''; end
+
+if strcmp(opts.reduction, 'newton-polytope') && isempty(opts.solver)
+    error('No solver provided for Newton reduction.')
 end
 
 if nargin < 2 || isempty(I)
@@ -78,20 +89,39 @@ Irem = [ceil(vertcat(MX{:})/2) < zdm, floor(vertcat(MN{:})/2) > zdm];
 Lz(reshape(any(Irem,2),lz,lp)') = false;
 
 % remove unused monomials from base vector
-I = any(Lz,1);
-degmat = z.degmat(I,:);
-Lz(:,~I) = [];
+Ir = any(Lz,1);
+degmat = z.degmat(Ir,:);
+Lz(:,~Ir) = [];
 
-% removes monomials outside half Newton polytope
-if ~isempty(newton_solver)
-    Ldegmat_red = Ldegmat(idx,:);
-    Lz_red = arrayfun(@(i) newton_reduce(S.degmat(Ldegmat_red(i,:),Iv),degmat,newton_solver,Lz(i,:)'), 1:lp, 'UniformOutput', false);
-    Lz_red = horzcat(Lz_red{:})';
-    
-    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets,Lz_red);
-else
-    [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);	
+% build output sparsity, cone sizes and gram basis to output sparsity mapping 
+switch (opts.reduction)
+    case {'none'}
+        % no reduction algorithm
+        [Z,K,Mp,Md] = gram_internal(Lz,degmat,z.indets);
+
+    case {'zero-diagonal'}
+        % Zero Diagonal Algorithm
+        %
+        % [1] Seiler, P.; Zheng, Q.; Balas, G. Simplification Methods 
+        %     for Sum-of-Squares Programs. arXiv March 6, 2013.
+        %
+        [Z,K,Mp,Md,reduction_info] = zero_diagonal(Lz,degmat,z.indets,S,I,idx,lp);
+
+    case {'newton-polytope'}
+        % Newton Polytope Reduction
+        %
+        % [2] Lofberg, J. Pre- and Post-Processing Sum-of-Squares Programs 
+        %     in Practice. IEEE Trans. Automat. Contr. 2009, 54 (5), 
+        %     1007–1011. https://doi.org/10.1109/TAC.2009.2017144
+        %
+        [Z,K,Mp,Md,reduction_info] = newton_polytope(Lz,degmat,z.indets,S,I,idx,lp,Iv,opts.solver);
+
+    otherwise
+        error('No option "%s" for Gram basis reduction.', opts.reduction)
 end
+
+% set structure that contains info about the reduction
+reduction_info.algorithm = opts.reduction;
 
 % build half-basis for each element
 [i,j] = find(Lz');

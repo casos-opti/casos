@@ -8,6 +8,12 @@ classdef (InferiorClasses = {?casadi.Sparsity, ?casadi.DM, ?casadi.SX, ?casadi.M
     Sparsity < casos.package.core.PolynomialInterface
 % Polynomial sparsity class.
 
+properties (Constant,Access=protected)
+    % options for Gram basis construction
+    grambasis_options = casos.package.Options({'reduction', 'Algorithm for Gram basis reduction.'
+         'solver', 'Solver used for the Newton reduction algorithm.'});
+end
+
 properties (GetAccess=protected, SetAccess=private)
     % polynomial sparsity is stored in multi-index fashion, that is,
     %
