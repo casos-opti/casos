@@ -215,6 +215,6 @@ obj.gram2sos = casadi.Function('L', ...
 obj.sosopt_info.gram = struct('Kx', Ksdp_x_s, 'Kc', Ksdp_g_s);
 
 % set the reduction info structure
-obj.sosopt_info.reduction_info = reduction_info;
+obj.sosopt_info.reduction = reduction_info;
 
 end

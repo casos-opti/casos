@@ -17,8 +17,8 @@ end
 properties (Constant,Access=protected)
     sossdp_options = [casos.package.solvers.SosoptCommon.sosopt_options
         {'sdpsol_options', 'Options to be passed to the SDP solver.';...
-         'grambasis_reduction', 'Option of the algorithm to prune monomial basis';...
-         'newton_solver', 'Solver used for the Newton simplification (defaults to the one used in sdpsol)'}
+         'grambasis_reduction', 'Algorithm for Gram basis reduction.';...
+         'newton_solver', 'Solver used for the Newton reduction algorithm (defaults to the one used in sdpsol).'}
     ];
 end
 

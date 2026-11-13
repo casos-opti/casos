@@ -199,7 +199,7 @@ Z = casos.Sparsity.tuplet(lp, 1, i(keep_mono), j(keep_mono), Z.indets, degmat(ke
 reduction_time = toc(start_time);
 
 % create info structure 
-info = struct('gram_reduced', K_red, 'gram_original', K, 'lp_solved', lp_counter, 'time', reduction_time);
+info = struct('gram_reduced', K_red, 'gram_original', K, 'iterations', lp_counter, 'time', reduction_time);
 
 
 end

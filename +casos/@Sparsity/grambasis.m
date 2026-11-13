@@ -111,7 +111,7 @@ switch grambasis_reduction
 end
 
 % set structure that contains info about the reduction
-reduction_info.grambasis_reduction = grambasis_reduction;
+reduction_info.algorithm = grambasis_reduction;
 
 % build half-basis for each element
 [i,j] = find(Lz');
