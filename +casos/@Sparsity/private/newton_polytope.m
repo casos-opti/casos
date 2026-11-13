@@ -4,7 +4,7 @@
 %
 % SPDX-License-Identifier: GPL-3.0-only
 
-function [Z,K_red,Mp,Md,info] = newton_reduce(Lz, degmat, indets, S, I, idx, lp, Iv, solver)
+function [Z,K_red,Mp,Md,info] = newton_polytope(Lz, degmat, indets, S, I, idx, lp, Iv, solver)
 % Removes monomials outside half Newton polytope.
 %
 %   Strategy inspired by: 

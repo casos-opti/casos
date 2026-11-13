@@ -105,7 +105,7 @@ switch (opts.reduction)
         % [1] Seiler, P.; Zheng, Q.; Balas, G. Simplification Methods 
         %     for Sum-of-Squares Programs. arXiv March 6, 2013.
         %
-        [Z,K,Mp,Md,reduction_info] = zero_diagonal_alg(Lz,degmat,z.indets,S,I,idx,lp);
+        [Z,K,Mp,Md,reduction_info] = zero_diagonal(Lz,degmat,z.indets,S,I,idx,lp);
 
     case {'newton-polytope'}
         % Newton Polytope Reduction
@@ -114,7 +114,7 @@ switch (opts.reduction)
         %     in Practice. IEEE Trans. Automat. Contr. 2009, 54 (5), 
         %     1007–1011. https://doi.org/10.1109/TAC.2009.2017144
         %
-        [Z,K,Mp,Md,reduction_info] = newton_reduce(Lz,degmat,z.indets,S,I,idx,lp,Iv,opts.solver);
+        [Z,K,Mp,Md,reduction_info] = newton_polytope(Lz,degmat,z.indets,S,I,idx,lp,Iv,opts.solver);
 
     otherwise
         error('No option "%s" for Gram basis reduction.', opts.reduction)
