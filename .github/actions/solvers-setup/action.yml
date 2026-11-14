@@ -45,18 +45,18 @@ runs:
     # Configure MOSEK license for solver activation
     - name: Set up MOSEK license
       shell: bash
+      env:
+        MSK_LICENSE: ${{ env.MOSEKLM_LICENSE_FILE }}
       run: |
         # Create MOSEK configuration directory in user's home
         mkdir -p ~/mosek
 
         # Create license file from environment variable (typically from GitHub secret)
-        if [ -n "${{ env.MOSEKLM_LICENSE_FILE }}" ]; then
-          echo "Creating license file from secret..."
-          echo "${{ env.MOSEKLM_LICENSE_FILE }}" > ~/mosek/mosek.lic
+        if [ -n "$MSK_LICENSE" ]; then
+          printf '%s\n' "$MSK_LICENSE" > ~/mosek/mosek.lic
           chmod 600 ~/mosek/mosek.lic
-          echo "MOSEK license file created at ~/mosek/mosek.lic"
         else
-          echo "Warning: No MOSEK license secret found. Set MSK_LICENSE secret with your license content."
+          echo "Warning: MSK_LICENSE secret is empty."
         fi
 
     # Debug: List generated files for verification
@@ -103,30 +103,26 @@ runs:
     # SeDuMi INSTALLATION
     # ============================================================
 
-    # Clone SeDuMi repository from GitHub
-    - name: Checkout tools repo
-      uses: actions/checkout@v3
-      with:
-        repository: sqlp/sedumi   # Official SeDuMi repository
-        path: sedumi              # Local directory name
+    - name: Download SeDuMi release archive
+      shell: bash
+      run: |
+        wget -q "https://github.com/sqlp/sedumi/releases/download/v1.3.8/sedumi.zip" -O /tmp/sedumi.zip
+        unzip -q /tmp/sedumi.zip -d sedumi
+        # Remove Octave binaries, keep only MATLAB MEX files
+        rm -rf sedumi/o_lin sedumi/o_maca sedumi/o_maci sedumi/o_win
+        rm -f /tmp/sedumi.zip
 
-    # Install and compile SeDuMi in MATLAB
-    - uses: matlab-actions/run-command@v2
+    # Binaries verification
+    - name: Verify SeDuMi binaries
+      uses: matlab-actions/run-command@v2
       with:
         command: |
-          % Navigate to SeDuMi directory
-          cd('sedumi'); 
-
-          % Install SeDuMi with rebuild flag (compiles MEX files)
-          try
-            % Use evalc to capture installation output silently
-            evalc('install_sedumi -rebuild');
-            fprintf('SeDuMi installed successfully\n');
-          catch ME
-            % Display error details if installation fails
-            fprintf('Error installing SeDuMi: %s\n', ME.message);
-            rethrow(ME);
+          addpath(genpath(fullfile(pwd, 'sedumi')));
+          % Confirm MEX binaries are loadable (blkchol is a core compiled function)
+          if exist('blkchol', 'file') ~= 3
+            error('SeDuMi MEX binaries are not available on this platform.');
           end
+          fprintf('SeDuMi prebuilt binaries are ready.\n');
 
     # ============================================================
     # SCS INSTALLATION
