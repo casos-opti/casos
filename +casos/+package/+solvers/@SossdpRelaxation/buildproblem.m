@@ -33,10 +33,14 @@ assert(m == (Ml + Ms + Mds + Msds), 'Dimension of Kc must be equal to number of 
 Is = [false(Nl,1); true(Ns,1); true(Nds,1); true(Nsds,1)];
 Js = [false(Ml,1); true(Ms,1); true(Mds,1); true(Msds,1)];
 
+% set options for Gram basis reduction
+gram_opts.reduction = opts.grambasis_reduction;
+gram_opts.solver    = opts.newton_solver;
+
 % obtain Gram basis for decision variables
-[Zvar_s,Ksdp_x_s,~,Mp_x,Md_x] = grambasis(sparsity(sos.x),Is,opts.newton_solver);
+[Zvar_s,Ksdp_x_s,~,Mp_x,Md_x] = grambasis(sparsity(sos.x),Is);
 % obtain Gram basis for sum-of-squares constraints
-[Zcon_s,Ksdp_g_s,~,Mp_g,Md_g] = grambasis(sparsity(sos.g),Js,opts.newton_solver);
+[Zcon_s,Ksdp_g_s,~,Mp_g,Md_g,reduction_info] = grambasis(sparsity(sos.g),Js,gram_opts);
 
 % matrix decision variables for variables
 Qvar_G = casadi.SX.sym('P',sum(Ksdp_x_s.^2),1);
@@ -213,5 +217,8 @@ obj.gram2sos = casadi.Function('L', ...
 
 % Fill info struct
 obj.sosopt_info.gram = struct('Kx', Ksdp_x_s, 'Kc', Ksdp_g_s);
+
+% set the reduction info structure
+obj.sosopt_info.reduction = reduction_info;
 
 end

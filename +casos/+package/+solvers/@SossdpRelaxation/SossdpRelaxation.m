@@ -16,8 +16,9 @@ end
 
 properties (Constant,Access=protected)
     sossdp_options = [casos.package.solvers.SosoptCommon.sosopt_options
-        {'sdpsol_options', 'Options to be passed to the SDP solver.';...
-         'newton_solver', 'Solver used for the Newton simplification (defaults to the one used in sdpsol)'}
+        {'sdpsol_options',  'Options to be passed to the SDP solver.'
+         'grambasis_reduction', 'Algorithm for Gram basis reduction.'
+         'newton_solver',   'Solver used for the Newton reduction algorithm (defaults to the one used in sdpsol).'}
     ];
 end
 
@@ -43,6 +44,7 @@ methods
 
         % default options
         if ~isfield(obj.opts,'sdpsol_options'), obj.opts.sdpsol_options = struct; end
+        if ~isfield(obj.opts,'grambasis_reduction'), obj.opts.grambasis_reduction = 'newton-polytope'; end
         if ~isfield(obj.opts,'newton_solver'), obj.opts.newton_solver = solver; end
         
         % pass options to sdpsol
