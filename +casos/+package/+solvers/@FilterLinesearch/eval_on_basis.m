@@ -466,6 +466,8 @@ if iter > obj.opts.max_iter || time_limit_reached
     stats.single_iterations{iter}.max_con_vio  = theta_x_k;
     stats.single_iterations{iter}.step_length  = alpha_k;
     stats.single_iterations{iter}.d_ldx        = gradLag_k;
+    scaled_gradLag_k = full(obj.scaled_nabla_L_inf(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, gradLag_k));
+    stats.single_iterations{iter}.scaled_d_ldx = scaled_gradLag_k;
     stats.single_iterations{iter}.counter_restoration_calls = counter_restoration_calls;
 end
 
