@@ -190,6 +190,7 @@ stats.single_iterations{1}.time_stats.filter_accept_time   = 0;
 stats.single_iterations{1}.time_stats.suff_decrease_time   = 0;
 stats.single_iterations{1}.time_stats.soc_time             = 0;
 stats.single_iterations{1}.time_stats.feas_res_time        = 0;
+stats.single_iterations{1}.time_stats.eval_kkt_con_time    = 0;
 
 
 % end of time measurement for initialization
@@ -248,6 +249,7 @@ while iter <= obj.opts.max_iter
     stats.single_iterations{iter+1}.time_stats.suff_decrease_time   = 0;
     stats.single_iterations{iter+1}.time_stats.soc_time             = 0;
     stats.single_iterations{iter+1}.time_stats.feas_res_time        = 0;
+    stats.single_iterations{iter+1}.time_stats.eval_kkt_con_time    = 0;
 
 
     %% check convergence (first-order optimality)
