@@ -34,7 +34,8 @@ lagrange_filter = obj.opts.filter_struct.lagrange_filter;
 
 
 alpha = alpha_max;
-
+f_type = 0;
+armijo = 0;
 % Backtracking linesearch
 while true
 

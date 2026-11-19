@@ -206,6 +206,7 @@ while iter <= obj.opts.max_iter
     end
 
     % evaluate first-order optimality and termination thresholds once per iterate
+    stats.single_iterations{iter}.time_stats.eval_kkt_con_time = 0;
     t_KKT_con = tic;
     gradLag_k = full(obj.eval_gradLag(x_k,p0,dual_k));
     [opt_thres,opt_thres_10x,opt_thres_self] = obj.eval_termination(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, obj.opts.tolerance_opt);
@@ -468,6 +469,9 @@ if iter > obj.opts.max_iter || time_limit_reached
     stats.single_iterations{iter}.d_ldx        = gradLag_k;
     scaled_gradLag_k = full(obj.scaled_nabla_L_inf(f_x_k, full(obj.eval_gradLag_inf_norm(x_k,p0,dual_k)), gradLag_k, delta_xi_double, gradLag_k));
     stats.single_iterations{iter}.scaled_d_ldx = scaled_gradLag_k;
+    if ~isfield(stats.single_iterations{iter}.time_stats,'eval_kkt_con_time')
+    stats.single_iterations{iter}.time_stats.eval_kkt_con_time = 0;
+    end
     stats.single_iterations{iter}.counter_restoration_calls = counter_restoration_calls;
 end
 
