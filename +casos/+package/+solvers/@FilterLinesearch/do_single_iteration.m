@@ -252,21 +252,21 @@ stats{iter}.constraint_violation = constraint_violation;
 
 t_hess_approx = tic;
 % update quasi-Newton/exact Hessian
-if strcmpi(obj.opts.hessian_approx,'BFGS')
+if strcmpi(obj.opts.hessian_approx,'damped_bfgs')
     % damped BFGS
-    Bk = damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter);
+    Bk = hessian_damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter);
 
-elseif strcmpi(obj.opts.hessian_approx,'levenberg')
+elseif strcmpi(obj.opts.hessian_approx,'regularization_levenberg')
     % see Betts book
     H  = full(obj.eval_Hessian(x_k1,p0,dual_k1));
-    Bk = casos.package.solvers.SequentialCommon.hessian_levenberg(H);
+    Bk = casos.package.solvers.SequentialCommon.hessian_regularization_levenberg(H);
 
-elseif strcmpi(obj.opts.hessian_approx,'regularization')
+elseif strcmpi(obj.opts.hessian_approx,'regularization_frobenius')
     % own regularization method
     H = full(obj.eval_Hessian(x_k1,p0,dual_k1));
-    Bk = casos.package.solvers.SequentialCommon.regularize_hessian(H);
+    Bk = casos.package.solvers.SequentialCommon.hessian_regularization_frobenius(H);
 
-elseif strcmpi(obj.opts.hessian_approx,'mirroring')
+elseif strcmpi(obj.opts.hessian_approx,'regularization_mirror')
     % Verschueren
     H = full(obj.eval_Hessian(x_k1,p0,dual_k1));
     try
@@ -276,7 +276,7 @@ elseif strcmpi(obj.opts.hessian_approx,'mirroring')
         L = casadi.DM.eye(length(d)) + LT';
         Bk = full(L*abs(casadi.DM(diag(d)))*L');
     catch
-        Bk = casos.package.solvers.SequentialCommon.hessian_levenberg(H);
+        Bk = casos.package.solvers.SequentialCommon.hessian_regularization_levenberg(H);
     end
 
 else

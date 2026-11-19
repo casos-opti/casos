@@ -12,7 +12,7 @@ import casos.package.UnifiedReturnStatus
 %% print output with current problem and setting
 printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
 printf(obj.log,'debug',['\t\t Ca' char(931) 'oS-Nonlinear sum-of-squares optimization suite \n']);
-printf(obj.log,'debug','\t\t Sequential Quadratic Sum-of-Squares Solver v1.1, October''26 \n');
+printf(obj.log,'debug','\t\t Sequential Quadratic Sum-of-Squares Solver v1.1, November''26 \n');
 printf(obj.log,'debug','\t\t GNU GENERAL PUBLIC LICENSE \n');
 printf(obj.log,'debug','\t\t Institute of Flight Mechanics and Control, Univ. of Stuttgart \n');
 printf(obj.log,'debug','------------------------------------------------------------------------------------------\n');
@@ -24,14 +24,73 @@ printf(obj.log,'debug',' Linear constraints \t\t= %d\n',0 );
 
 printf(obj.log,'debug','-------------------------------------------------------\n')
 printf(obj.log,'debug','Settings \n ')
-printf(obj.log,'debug','Solver\t\t\t\t- %s\n ', obj.display_para.solver);
+printf(obj.log,'debug','Conic Solver\t\t\t- %s\n ', obj.display_para.solver);
 printf(obj.log,'debug','Maximum iterations\t\t- %d\n ', obj.opts.max_iter);
+printf(obj.log,'debug','Maximum solve time\t\t- %d s\n ', obj.opts.max_time);
 printf(obj.log,'debug','Constraint violation Check \t- %s\n ',obj.opts.con_vio_check);
 printf(obj.log,'debug','Second-order correction \t- %s \n',mat2str(obj.opts.enable_soc));
 printf(obj.log,'debug',' Hessian-approximation\t\t- %s\n',obj.opts.hessian_approx);
 printf(obj.log,'debug',[' ' char(949) '_con\t\t\t\t- %d\n'],obj.opts.tolerance_con);
 printf(obj.log,'debug',[' ' char(949) '_opt\t\t\t\t- %d\n'],obj.opts.tolerance_opt);
 printf(obj.log,'debug','-------------------------------------------------------\n');
+printf(obj.log,'debug','Filter Parameters \n');
+
+filterNames = { ...
+    [char(945) '_max'], ...
+    ['s_' char(952)], ...
+    ['s_' char(966)], ...
+    [char(947) '_' char(952)], ...
+    [char(947) '_' char(966)], ...
+    [char(947) '_' char(945)], ...
+    char(948), ...
+    char(951), ...
+    [char(952) '_min']};
+
+filterValues = { ...
+    obj.opts.filter_struct.alpha_max, ...
+    obj.opts.filter_struct.s_theta, ...
+    obj.opts.filter_struct.s_phi, ...
+    obj.opts.filter_struct.gamma_theta, ...
+    obj.opts.filter_struct.gamma_phi, ...
+    obj.opts.filter_struct.gamma_alpha, ...
+    obj.opts.filter_struct.delta, ...
+    obj.opts.filter_struct.eta, ...
+    obj.opts.filter_struct.theta_min};
+
+maxNameLen = max(cellfun(@numel, filterNames));
+
+for k = 1:numel(filterNames)
+    printf(obj.log,'debug',[' %-' num2str(maxNameLen) 's = %.3e\n'], ...
+        filterNames{k}, filterValues{k});
+end
+
+printf(obj.log,'debug','-------------------------------------------------------\n');
+printf(obj.log,'debug','Feasibility Restoration Parameters\n');
+
+feasNames = { ...
+    [char(954) '_res'], ...
+    [char(963) '_min'], ...
+    [char(963) '_max']};
+
+feasValues = {  ...
+    obj.opts.kappa_res, ...
+    obj.opts.sigma_min, ...
+    obj.opts.sigma_max};
+
+maxNameLen = max(cellfun(@numel, feasNames));
+
+for k = 1:numel(feasNames)
+    if ischar(feasValues{k}) || isstring(feasValues{k})
+        printf(obj.log,'debug',[' %-' num2str(maxNameLen) 's = %s\n'], ...
+            feasNames{k}, char(feasValues{k}));
+    else
+        printf(obj.log,'debug',[' %-' num2str(maxNameLen) 's = %.3e\n'], ...
+            feasNames{k}, feasValues{k});
+    end
+end
+
+printf(obj.log,'debug','-------------------------------------------------------\n');
+
 printf(obj.log,'debug','\n');
 printf(obj.log,'debug','Solver build time \t\t:  %0.2d s\n', obj.display_para.solver_build_time);
 printf(obj.log,'debug','Start solving ... \n');
@@ -65,7 +124,7 @@ dual_k = zeros(obj.init_para.no_dual_var,1);
 % select hessian approximation method
 % Note: If BFGS is used we do not pre-compute the Hessian to save build
 % time! Hence, we use the identy matrix and potentially user scaling
-if strcmpi(obj.opts.hessian_approx,'BFGS')
+if strcmpi(obj.opts.hessian_approx,'damped_bfgs')
         Bk =  eye(obj.init_para.size_B)*obj.opts.scale_bfgs0;
 else
     
@@ -79,7 +138,7 @@ else
         % initialize Hessian approximation with regularization
         H = full(obj.eval_Hessian(x_k,p0,dual_k));
     
-        Bk = casos.package.solvers.SequentialCommon.regularize_hessian(H);
+        Bk = casos.package.solvers.SequentialCommon.hessian_regularization_frobenius(H);
     
     else
         error('Unknown option "%s" for Hessian initialization.',obj.opts.hessian_init)
@@ -651,7 +710,7 @@ stats.total_solve_time    = measSolveTime;
 stats.solver_build_time   = obj.display_para.solver_build_time;
 stats.iterations          = iter-1; % we do not count the initial guess
 stats.time_per_iteration  = stats.total_solve_time/stats.iterations;
-
+stats.build_time_struct   = obj.build_time_struct;
 % assign output
 argout = sol;
 

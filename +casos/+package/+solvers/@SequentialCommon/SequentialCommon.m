@@ -22,6 +22,9 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
             'max_time','Maximum allowed solve time.'
             'almost_opt_count','Number of iterations to check for almost optimal. '
             'feasibility_restoration','Control cost function of feasibility restoration.'
+            'sigma_min','Minimum value for restoration slack variable'
+            'sigma_max','Maximum value for restoration slack variable'
+            'kappa_res','Parameter for filter acceptance in restoration,'
             'con_vio_check','Select method for constraint violation check'
             'user_sample','If sampling is used, user can provide samples.'
             'verbose', 'Turn on/off iteration display.'}
@@ -51,7 +54,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         eval_suff_decrease;
 
         % damped BFGS
-        damped_bfgs;
+        hessian_damped_bfgs;
         eval_s;
         eval_y;
         eval_r;
@@ -70,8 +73,10 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         init_para;
         feas_res_para;
         display_para;
+       
 
         % logging & info
+        build_time_struct
         log;
         status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
         sequential_stats = struct('iter',[]);
@@ -101,8 +106,8 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
 
     methods (Static)
         % iteration for overloading/hessian approximation
-        varargout = regularize_hessian(varargin);
-        varargout = hessian_levenberg(varargin);
+        varargout = hessian_regularization_frobenius(varargin);
+        varargout = hessian_regularization_levenberg(varargin);
         varargout = hessian_regularization(varargin);
     end
 
@@ -153,7 +158,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
 
             % --- Hessian approximation ---
             % select method
-            if ~isfield(obj.opts,'hessian_approx'), obj.opts.hessian_approx                     = 'regularization'; end
+            if ~isfield(obj.opts,'hessian_approx'), obj.opts.hessian_approx                     = 'regularization_frobenius'; end
             % how to initialize hessian
             if ~isfield(obj.opts,'hessian_init'),   obj.opts.hessian_init                       = 'analytical'; end
             %initial scaling factor for Hessian 
@@ -161,6 +166,13 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
 
             % feasibility restoration
             if ~isfield(obj.opts,'feasibility_restoration'), obj.opts.feasibility_restoration   = 'regularize'; end
+            if ~isfield(obj.opts,'kappa_res'), obj.opts.kappa_res   = 0.9; end
+            if ~isfield(obj.opts,'sigma_min'), obj.opts.sigma_min   = 0.01; end
+            if ~isfield(obj.opts,'sigma_max'), obj.opts.sigma_max   = 1; end
+
+            if ~isfield(obj.opts,'feasibility_restoration'), obj.opts.feasibility_restoration   = 'regularize'; end
+            if ~isfield(obj.opts,'feasibility_restoration'), obj.opts.feasibility_restoration   = 'regularize'; end
+           
 
             % flag to turn on/off second order correction
             if ~isfield(obj.opts,'enable_soc'), obj.opts.enable_soc                             = true; end

@@ -13,6 +13,10 @@ opts = obj.opts;
 % sparsity patterns
 base_x = sparsity(nlsos.x);
 
+
+%% build quadratic SOS problem
+
+t_build_QP_start = tic;
 % Jacobians
 Df = jacobian(nlsos.f,nlsos.x);
 Dg = jacobian(nlsos.g,nlsos.x);
@@ -22,7 +26,6 @@ B = casadi.SX.sym('B',nnz(base_x),nnz(base_x));
 
 Hf = casos.PSOperator(B,base_x,base_x);
 
-%% build quadratic SOS problem
 sos_qp = [];
 % convex decision variables
 sos_qp.x = casos.PS.sym('x_convex',base_x);
@@ -65,6 +68,10 @@ obj.sparsity_gs = obj.solver_convex.sparsity_gs;
 basis_nlsos_x = poly2basis(nlsos.x);
 basis_nlsos_p = poly2basis(nlsos.p);
 
+obj.build_time_struct.t_build_QP = toc(t_build_QP_start);
+
+
+t_build_con_vio_start = tic;
 if strcmpi(obj.opts.con_vio_check,'signed-distance')
     %% constraint violation check via signed distance
     % sparsity patterns of nonlinear constraints
@@ -172,7 +179,12 @@ else
     obj.eval_constraint_samples = casadi.Function('g', {basis_nlsos_x, X}, {casadi.SX(G)});
 end
 
+obj.build_time_struct.t_build_con_vio = toc(t_build_con_vio_start);
+
 %% Second-order correction (soc)
+
+t_build_soc_start = tic;
+
 if obj.opts.enable_soc
     % parameter of current qp solution
     x_star_par   = casos.PS.sym('x_star',base_x);
@@ -208,7 +220,13 @@ if obj.opts.enable_soc
     obj.solver_soc = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_soc,sosopt);
 end
 
-%% Damped BFGS (see Nocedal p.536/537)
+obj.build_time_struct.t_build_soc = toc(t_build_soc_start);
+
+%% Hessian Estimation
+
+t_build_hessian_start = tic;
+
+
 lam_gs    = casos.PS.sym('lam_gs', obj.sparsity_g);
 x_k1      = casos.PS.sym('x_k1',base_x);
 
@@ -223,7 +241,7 @@ obj.eval_L = casos.Function('L',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, {lag
 % Hessian of Langrangian; in case we use BFGS, we do not have to explictly
 % compute the Hessian. The hessian call also returns the gradient of the
 % Lagrangian, hence it is projected and differentiated only once.
-if ~strcmpi(obj.opts.hessian_approx,'BFGS')
+if ~strcmpi(obj.opts.hessian_approx,'damped_bfgs')
     % current work around, because poly. hessian does not output jacobian
     [L_xx, dLdx0] = hessian(poly2basis(lagrangian), basis_nlsos_x);
     obj.eval_Hessian = casos.Function('H',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { L_xx });
@@ -252,9 +270,14 @@ B     = casadi.MX.sym('B',[size(B,1),size(B,1)]);
 obj.eval_r = casos.Function('f',{B,theta,y,s}, {theta*y+(1-theta)*B*s});
 
 % B = B + (r*r')/(s'*r) - (B*s*s'*B)/(s'*B*s)
-obj.damped_bfgs =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
+obj.hessian_damped_bfgs =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
+
+
+obj.build_time_struct.t_build_hessian = toc(t_build_hessian_start);
 
 %% evaluation functions
+t_build_eval_functions_start = tic;
+
 
 % nonlinear cost function
 obj.eval_cost      = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { full(nlsos.f) });
@@ -404,7 +427,7 @@ end
 
 obj.eval_constraint = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, {poly2basis(nlsos.g)});
 
-
+obj.build_time_struct.t_build_eval_functions = toc(t_build_eval_functions_start);
 
 
 %% get parameter that are needed for initilization

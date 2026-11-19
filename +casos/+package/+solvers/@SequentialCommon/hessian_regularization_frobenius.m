@@ -19,7 +19,7 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function H_reg = regularize_hessian(H)
+function H_reg = hessian_regularization_frobenius(H)
 
     if nargin < 2
         epsilon = sqrt(eps);          % relative floor, ~1.5e-8

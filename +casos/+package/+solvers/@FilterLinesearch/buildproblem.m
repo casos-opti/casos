@@ -66,5 +66,5 @@ obj.feas_res_solver   =  casos.package.solvers.FeasibilityRestoration('feasRes',
 % total build time for both actual problem and feasibility
 % restoration
 obj.display_para.solver_build_time      = obj.display_para.solver_build_time +obj.feas_res_solver.display_para.solver_build_time;
-
+obj.build_time_struct.t_build_feas_res  = obj.feas_res_solver.display_para.solver_build_time;
 end

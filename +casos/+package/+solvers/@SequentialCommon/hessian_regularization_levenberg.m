@@ -19,7 +19,7 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function H_regularized = hessian_levenberg(H)
+function H_regularized = hessian_regularization_levenberg(H)
 
 epsilon = sqrt(eps);
 

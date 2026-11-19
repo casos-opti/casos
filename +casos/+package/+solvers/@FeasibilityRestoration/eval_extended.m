@@ -63,8 +63,10 @@ f_x_k     = full(obj.eval_cost(x_k,p0));
 
 linesearch_filter = [max(1,theta_x_k)*10, inf];
 
-lambda_min = 0.01;
-lambda_max = 1;
+
+lambda_min = obj.opts.sigma_min;
+lambda_max = obj.opts.sigma_max;
+
 lambda0 = lambda_min + (lambda_max-lambda_min)*1/(1+(max(theta_x_k,obj.opts.tolerance_con)-obj.opts.tolerance_con)/obj.opts.tolerance_con);
 
 % parameter for feasibility restoration: actual parameter and iterate where
@@ -72,7 +74,8 @@ lambda0 = lambda_min + (lambda_max-lambda_min)*1/(1+(max(theta_x_k,obj.opts.tole
 p0 = [p00; x_R;lambda0 ];
 
 iter      = 1;
-kappa_res = 0.9;
+kappa_res = obj.opts.kappa_res;
+
 
 % just for display output in first iteration
 delta_xi_double   = norm(full( casadi.DM(x_k)),inf);

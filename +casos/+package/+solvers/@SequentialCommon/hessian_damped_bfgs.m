@@ -17,7 +17,7 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function Bk = damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter)
+function Bk = hessian_damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter)
 
 % update BFGS
 s_val = full( obj.eval_s(x_k,sol_iter.x_k1,p0) );
@@ -41,7 +41,7 @@ r_val = full( obj.eval_r(Bk,theta,y_val,s_val) );
 
 % update Bk
 % B = B + (r*r')/(s'*r) - (B*s*s'*B)/(s'*B*s);
-Bk =  full( obj.damped_bfgs(Bk,r_val,s_val) );
+Bk =  full( obj.hessian_damped_bfgs(Bk,r_val,s_val) );
 
 % check symmetry of Hessian and ajdust if necessary
 bk_nonsym = norm(Bk-Bk',inf);
