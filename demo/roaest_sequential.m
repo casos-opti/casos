@@ -46,10 +46,10 @@ p = x'*x;
 % options
 opts = struct('sossol','mosek');
 opts.verbose = 1;
+
 opts.hessian_approx = 'regularization_frobenius';
-opts.con_vio_check = 'signed-distance';
-% opts.hessian_init   = 'identity';
-% opts.scale_bfgs0    = 1e-3;
+opts.con_vio_check  = 'signed-distance';
+
 
 sos = struct('x',[V;s2;s1;b],'f',b,'p',[]);
 
@@ -74,17 +74,17 @@ S = casos.nlsossol('S','sequential',sos,opts);
 %% Solve nonlinear problem
 sol = S('x0',casos.PD([Vinit; (x'*x); x'*x; 0.1])); 
 
-% %% Plot results
-% % Lyapunov function
-% Vfun = to_function(sol.x(1));
-% % shape function
-% pfun = to_function(p);
-% % stable level set
-% bsol = full(sol.x(end));
-% 
-% figure
-% fcontour(@(x,y) full(Vfun(x,y)), [-2 2], 'b', "LevelList", [1 1])
-% hold on
-% fcontour(@(x,y) full(pfun(x,y)), [-2 2], 'r--', "LevelList", [bsol bsol])
-% hold off
-% grid on
+%% Plot results
+% Lyapunov function
+Vfun = to_function(sol.x(1));
+% shape function
+pfun = to_function(p);
+% stable level set
+bsol = full(sol.x(end));
+
+figure
+fcontour(@(x,y) full(Vfun(x,y)), [-2 2], 'b', "LevelList", [1 1])
+hold on
+fcontour(@(x,y) full(pfun(x,y)), [-2 2], 'r--', "LevelList", [bsol bsol])
+hold off
+grid on

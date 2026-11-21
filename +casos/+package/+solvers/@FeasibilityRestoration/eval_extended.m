@@ -6,6 +6,8 @@
 
 function [sol_iter,sol,filter_glob,feasibility_flag,stats_glob] = eval_extended(obj,filter_glob,x_R,theta_x_R0,p0,solver,stats_glob,iter_glob)
 
+t_solve = tic;
+
 % original parameter
 p00 = p0;
 
@@ -81,10 +83,9 @@ kappa_res = obj.opts.kappa_res;
 delta_xi_double   = norm(full( casadi.DM(x_k)),inf);
 delta_dual_double = norm(full( (dual_k)),inf);
 alpha_k            = 1;
-
+time_limit_reached = false;
 feasibility_flag = 0;
 
-t_solve = tic;
 while iter <= obj.opts.max_iter
 
     printf(obj.log,'debug','r%-8dr%-15er%-15er%-15er%-15er%-10fr%-10e\n',...
@@ -205,11 +206,18 @@ while iter <= obj.opts.max_iter
 
     iter = iter + 1;
 
+    % at the end of the loop, check solve time
+    if toc(t_solve) >= obj.opts.max_time && iter <= obj.opts.max_iter
+        % abort: maximum solve time reached
+        time_limit_reached = true;
+        break
+    end
+
 end % end of while
 
 
-if iter >= obj.opts.max_iter
-    % if max. number of iterations reached, the solver stalled
+if iter >= obj.opts.max_iter ||  time_limit_reached
+    % if max. number of iterations or time reached, the solver stalled
     feasibility_flag = -1;
 end
 

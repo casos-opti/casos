@@ -319,7 +319,7 @@ nabla_L_val_inf = casadi.SX.sym('nL');   % value of lagrange function derivative
 
 % store the scaled lagrange derivative (for plotting over iterations)
 obj.scaled_nabla_L_inf = casadi.Function('f',{f_val,gln_val,gl_val,dxi_val, nabla_L_val_inf}, ...
-    { nabla_L_val_inf*dxi_val/(fmax(1,abs(f_val)) + gln_val)});    
+    { (nabla_L_val_inf*dxi_val - gln_val)  /(fmax(1,abs(f_val)))});    
 
 % directional derivative of the cost along the search direction
 x_star_dir = casos.PS.sym('x_star',base_x);
