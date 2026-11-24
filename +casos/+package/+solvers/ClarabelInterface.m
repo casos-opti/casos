@@ -27,7 +27,7 @@ methods
 
         % set options to empty struct if there are none
         if ~isfield(obj.opts, 'clarabel')
-            obj.opts.clarabel = [];
+            obj.opts.clarabel = struct;
         end
 
     end
@@ -97,12 +97,8 @@ methods (Access=protected)
         cones = vertcat(cones{:});
         
         % call clarabel mex
-        if isempty(opts)
-              sol = clarabel_mex(data.P,data.c,data.A,data.b,cones);
-        else
-              sol = clarabel_mex(data.P,data.c,data.A,data.b,cones,opts);
-        end
-      
+        sol = clarabel_mex(data.P,data.c,data.A,data.b,cones,opts);
+       
         
         % extract primal, dual and slack variables
         x = sol.x;
