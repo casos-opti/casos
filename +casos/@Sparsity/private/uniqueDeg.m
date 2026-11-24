@@ -30,7 +30,7 @@ if isa(coeffs,'casadi.Sparsity')
 else
     % sum repeated coefficients
     summat = sparse(ic,1:nt,1,length(id),nt);
-    coeffs = (summat*coeffs);
+    coeffs = mtimes(summat,coeffs);
 end
 
 % undocumented: return indices

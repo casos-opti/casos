@@ -17,6 +17,9 @@ on:
   # TRIGGERS:
   pull_request:
     branches: [main]
+  pull_request_target:
+    types: [closed]
+    branches: [main]
   workflow_dispatch: {}   # Allow manual triggering from GitHub UI
 
 # ENVIRONMENT VARIABLES:
@@ -108,8 +111,8 @@ jobs:
           retention-days: 30
 
   # =============================================================================
-  # JOB 2: poly-tools
-  # PURPOSE: Test polynomial operations by comparing against reference implementation
+  # JOB 2: get-casadi-releases
+  # PURPOSE: Get the latests 3 CasADi releases
   # =============================================================================
   get-casadi-releases:
     runs-on: ubuntu-latest
@@ -135,12 +138,21 @@ jobs:
             | tail -n 3 \
             | jq -R . | jq -sc .)
 
+          # Fallback if empty
+          if [ -z "$RELEASES" ] || [ "$RELEASES" = "null" ]; then
+            RELEASES='["3.6.7","3.7.2","3.8.1"]'
+          fi
+
           # display the releases obtained
           echo "All releases ${RELEASES}" 
 
           # Set outputs for other jobs to consume
           echo "releases=${RELEASES}" >> $GITHUB_OUTPUT
-  
+
+  # =============================================================================
+  # JOB 3: poly-tools
+  # PURPOSE: Test polynomial operations by comparing against reference implementation
+  # =============================================================================
   poly-tools:
     name: Core tests (casadi v${{ matrix.casadi-version }})
     needs: get-casadi-releases
@@ -233,14 +245,40 @@ jobs:
       - name: Fail if tests failed
         if: env.CORE_TESTS_FAILED == 'true'
         run: exit 1
+
+      # STEP 8: Record version status (runs even on failure)
+      - name: Record version status
+        if: always()
+        run: |
+          status="PASSED"
+          if [ "${{ env.CORE_TESTS_FAILED }}" = "true" ]; then
+            status="FAILED"
+          fi
+          echo "${{ matrix.casadi-version }} ${status}" > "casadi-poly-status.txt"
+          echo "Recorded: ${{ matrix.casadi-version }} ${status}"
+
+      # STEP 9: Upload per-version status
+      - name: Upload version status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: casadi-status-poly-${{ matrix.casadi-version }}
+          path: casadi-poly-status.txt
+          if-no-files-found: warn
+          retention-days: 30
           
   # =============================================================================
-  # JOB 3: sdp-tools
+  # JOB 4: sdp-tools
   # PURPOSE: Test SDP solver interfaces (Mosek, SeDuMi, Clarabel, SCS)
   # =============================================================================
   sdp-tools:
-    name: Convex solvers
+    name: Convex solvers (casadi v${{ matrix.casadi-version }})
+    needs: get-casadi-releases
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Continue testing other versions even if one fails
+      matrix:
+        casadi-version: ${{ fromJSON(needs.get-casadi-releases.outputs.releases) }}
 
     permissions:
       checks: write
@@ -264,6 +302,7 @@ jobs:
         uses: ./.github/actions/CasADi-setup
         with:
           message: "Setup CasADi"
+          CASADI_VERSION: ${{ matrix.casadi-version }} 
 
       # STEP 4: Setup optimization solvers
       # Installs and configures Mosek and SeDuMi solvers
@@ -327,16 +366,41 @@ jobs:
       - name: Fail if tests failed
         if: env.SOLVERS_TESTS_FAILED == 'true'
         run: exit 1
+
+      # STEP 9: Record version status
+      - name: Record version status
+        if: always()
+        run: |
+          status="PASSED"
+          if [ "${{ env.SOLVERS_TESTS_FAILED }}" = "true" ]; then
+            status="FAILED"
+          fi
+          echo "${{ matrix.casadi-version }} ${status}" > "casadi-sdp-status.txt"
+          echo "Recorded: ${{ matrix.casadi-version }} ${status}"
+
+      # STEP 10: Upload per-version status
+      - name: Upload version status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: casadi-status-sdp-${{ matrix.casadi-version }}
+          path: casadi-sdp-status.txt
+          if-no-files-found: warn
+          retention-days: 30
    
   # =============================================================================
-  # JOB 4: demo-check
+  # JOB 5: demo-check
   # PURPOSE: Verify that all demo scripts execute without errors
   # DEPENDENCIES: Requires successful solver tests (sdp-tools)
   # =============================================================================
   demo-check:
-    name: Demos analysis
-    needs: sdp-tools      # Only run if solver tests pass
+    name: Demos analysis (casadi v${{ matrix.casadi-version }})
+    needs: [get-casadi-releases, sdp-tools]     # Only run if solver tests pass
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Continue testing other versions even if one fails
+      matrix:
+        casadi-version: ${{ fromJSON(needs.get-casadi-releases.outputs.releases) }}
   
     permissions:
       checks: write
@@ -360,6 +424,7 @@ jobs:
         uses: ./.github/actions/CasADi-setup
         with:
           message: "Setup CasADi"
+          CASADI_VERSION: ${{ matrix.casadi-version }} 
 
       # STEP 4: Setup optimization solvers
       - name: Setup Solvers
@@ -411,9 +476,30 @@ jobs:
       - name: Fail if tests failed
         if: env.DEMO_TESTS_FAILED == 'true'
         run: exit 1
+
+      # STEP 8: Record version status
+      - name: Record version status
+        if: always()
+        run: |
+          status="PASSED"
+          if [ "${{ env.DEMO_TESTS_FAILED }}" = "true" ]; then
+            status="FAILED"
+          fi
+          echo "${{ matrix.casadi-version }} ${status}" > "casadi-demo-status.txt"
+          echo "Recorded: ${{ matrix.casadi-version }} ${status}"
+
+      # STEP 9: Upload per-version status
+      - name: Upload version status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: casadi-status-demo-${{ matrix.casadi-version }}
+          path: casadi-demo-status.txt
+          if-no-files-found: warn
+          retention-days: 30
            
   # =============================================================================
-  # JOB 5: notify-failures
+  # JOB 6: notify-failures
   # PURPOSE: Comment on PR if any test jobs failed
   # DEPENDENCIES: Runs after all test jobs complete
   # =============================================================================
@@ -541,4 +627,71 @@ jobs:
               });
               console.log('Removed old failure comment');
             }
+  
+  # =============================================================================
+  # JOB 7: collect-successful-casadi-versions
+  # PURPOSE: Aggregate which CasADi versions passed all test suites,
+  #          and save the list as a downloadable artifact.
+  # =============================================================================
+  collect-successful-casadi-versions:
+    name: Collect successful CasADi versions
+    needs: [get-casadi-releases, poly-tools, sdp-tools, demo-check]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all status artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-status
+          pattern: casadi-status-*
+          merge-multiple: false
+
+      - name: Aggregate successful versions
+        run: |
+          echo "=== Downloaded status files ==="
+          find all-status -type f -name '*.txt' -print -exec cat {} \;
+
+          declare -A suite_status
+
+          for f in $(find all-status -type f -name '*.txt'); do
+            suite=$(basename "$(dirname "$f")" | sed -E 's/^casadi-status-([a-z]+)-.*/\1/')
+            ver=$(awk '{print $1}' "$f")
+            status=$(awk '{print $2}' "$f")
+            [ -z "$ver" ] && continue
+            echo "suite=$suite version=$ver status=$status"
+            suite_status["${ver}|${suite}"]="$status"
+          done
+
+          SUCCESSFUL=()
+          ALL_VERSIONS=$(for k in "${!suite_status[@]}"; do echo "${k%%|*}"; done | sort -uV)
+
+          for ver in $ALL_VERSIONS; do
+            all_ok=true
+            seen=0
+            for suite in poly sdp demo; do
+              st="${suite_status["${ver}|${suite}"]}"
+              if [ -n "$st" ]; then
+                seen=$((seen+1))
+                [ "$st" != "PASSED" ] && all_ok=false
+              fi
+            done
+            if [ "$seen" -gt 0 ] && [ "$all_ok" = true ]; then
+              SUCCESSFUL+=("$ver")
+            fi
+          done
+
+          echo "=== Successful CasADi versions ==="
+          printf '%s\n' "${SUCCESSFUL[@]:-}" | tee successful_casadi_versions.txt
+          printf '%s\n' "${SUCCESSFUL[@]:-}" | jq -R . | jq -sc . > successful_casadi_versions.json
+
+      - name: Upload successful versions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: successful-casadi-versions
+          path: |
+            successful_casadi_versions.txt
+            successful_casadi_versions.json
+          if-no-files-found: warn
+          retention-days: 30
 
