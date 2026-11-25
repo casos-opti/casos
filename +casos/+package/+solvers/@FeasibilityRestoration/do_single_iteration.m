@@ -148,7 +148,7 @@ stats{iter}.constraint_violation = constraint_violation;
 
 % we only support BFGS because we have actually a linear cost + a quadratic
 % term; other methods failed in the past
-Bk = hessian_damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter);
+Bk =  casos.package.solvers.SequentialCommon.hessian_damped_bfgs(obj,Bk,x_k,p0,sol_iter);
 
 
 
