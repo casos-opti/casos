@@ -98,7 +98,6 @@ methods (Access=protected)
         
         % call clarabel mex
         sol = clarabel_mex(data.P,data.c,data.A,data.b,cones,opts);
-       
         
         % extract primal, dual and slack variables
         x = sol.x;
