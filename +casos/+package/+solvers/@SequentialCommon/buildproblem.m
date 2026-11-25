@@ -270,7 +270,7 @@ B     = casadi.MX.sym('B',[size(B,1),size(B,1)]);
 obj.eval_r = casos.Function('f',{B,theta,y,s}, {theta*y+(1-theta)*B*s});
 
 % B = B + (r*r')/(s'*r) - (B*s*s'*B)/(s'*B*s)
-obj.hessian_damped_bfgs =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
+obj.update_hessian_damped_bfgs =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
 
 
 obj.build_time_struct.t_build_hessian = toc(t_build_hessian_start);

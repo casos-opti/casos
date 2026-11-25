@@ -254,7 +254,7 @@ t_hess_approx = tic;
 % update quasi-Newton/exact Hessian
 if strcmpi(obj.opts.hessian_approx,'damped_bfgs')
     % damped BFGS
-    Bk = hessian_damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter);
+    Bk = casos.package.solvers.SequentialCommon.hessian_damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter);
 
 elseif strcmpi(obj.opts.hessian_approx,'regularization_levenberg')
     % see Betts book

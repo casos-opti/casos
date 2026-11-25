@@ -54,7 +54,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         eval_suff_decrease;
 
         % damped BFGS
-        hessian_damped_bfgs;
+        update_hessian_damped_bfgs; % update function of the actual bfgs
         eval_s;
         eval_y;
         eval_r;
@@ -108,7 +108,9 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         % iteration for overloading/hessian approximation
         varargout = hessian_regularization_frobenius(varargin);
         varargout = hessian_regularization_levenberg(varargin);
-        varargout = hessian_regularization(varargin);
+        varargout =  hessian_damped_bfgs(varargin);
+        % varargout = hessian_regularization(varargin);
+
     end
 
     methods
@@ -170,7 +172,6 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
             if ~isfield(obj.opts,'sigma_min'), obj.opts.sigma_min   = 0.01; end
             if ~isfield(obj.opts,'sigma_max'), obj.opts.sigma_max   = 1; end
 
-            if ~isfield(obj.opts,'feasibility_restoration'), obj.opts.feasibility_restoration   = 'regularize'; end
 
             % flag to turn on/off second order correction
             if ~isfield(obj.opts,'enable_soc'), obj.opts.enable_soc                             = true; end

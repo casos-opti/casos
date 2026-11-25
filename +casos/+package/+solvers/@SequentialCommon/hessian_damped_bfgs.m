@@ -41,7 +41,7 @@ r_val = full( obj.eval_r(Bk,theta,y_val,s_val) );
 
 % update Bk
 % B = B + (r*r')/(s'*r) - (B*s*s'*B)/(s'*B*s);
-Bk =  full( obj.hessian_damped_bfgs(Bk,r_val,s_val) );
+Bk =  full( obj.update_hessian_damped_bfgs(Bk,r_val,s_val) );
 
 % check symmetry of Hessian and ajdust if necessary
 bk_nonsym = norm(Bk-Bk',inf);
