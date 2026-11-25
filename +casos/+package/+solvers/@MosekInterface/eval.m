@@ -43,7 +43,6 @@ msk_param = obj.opts.mosek_param;
 msk_param.MSK_IPAR_AUTO_UPDATE_SOL_INFO = 'MSK_ON';
 msk_echo  = obj.opts.mosek_echo;
 
- 
 % build MOSEK command string
 msk_cmd = sprintf('minimize echo(%d) info statuskeys(0)',msk_echo);
 
