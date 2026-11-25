@@ -18,6 +18,7 @@ g = casos.PS.sym('g');
 sos = struct('x',g,'f',g,'g',f+g);
 % constraint is scalar SOS cone
 opts = struct('Kc',struct('sos',1));
+
 % solve by relaxation to SDP
 S = casos.sossol('S','sedumi',sos,opts);
 % evaluate
