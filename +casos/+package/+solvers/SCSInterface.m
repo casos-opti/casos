@@ -24,10 +24,9 @@ methods
     function obj = SCSInterface(name,conic,varargin)
         % Construct SCS interface.
         obj@casos.package.solvers.AbstractSCSInterface(name,conic,varargin{:});
-        
-        % set options to empty struct if there are none
-        if ~isfield(obj.opts,'verbose'), obj.opts.verbose = 0; end
 
+        % set options to empty struct if there are none
+        if ~isfield(obj.opts,'scs'), obj.opts.scs = struct; end
     end
 
     function s = info(obj)
@@ -51,7 +50,9 @@ methods (Access=protected)
 
         % options to SCS
         opts = obj.opts.scs;
-
+        % disable verbosity by default
+        if ~isfield(opts,'verbose'), opts.verbose = 0; end
+        
         % remove P if all entries are sparse
         % see: https://www.cvxgrp.org/scs/api/matrices.html 
         if nnz(data.P) == 0, data = rmfield(data, 'P'); end

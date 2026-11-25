@@ -108,9 +108,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         % iteration for overloading/hessian approximation
         varargout = hessian_regularization_frobenius(varargin);
         varargout = hessian_regularization_levenberg(varargin);
-        varargout =  hessian_damped_bfgs(varargin);
-        % varargout = hessian_regularization(varargin);
-
+        varargout = hessian_damped_bfgs(varargin);
     end
 
     methods
