@@ -26,10 +26,7 @@ methods
         obj@casos.package.solvers.AbstractSCSInterface(name,conic,varargin{:});
 
         % set options to empty struct if there are none
-        if ~isfield(obj.opts, 'clarabel')
-            obj.opts.clarabel = struct;
-        end
-
+        if ~isfield(obj.opts, 'clarabel'), obj.opts.clarabel = struct; end
     end
 
     function s = info(obj)
