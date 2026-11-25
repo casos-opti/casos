@@ -26,7 +26,7 @@ methods
         obj@casos.package.solvers.AbstractSCSInterface(name,conic,varargin{:});
         
         % set options to empty struct if there are none
-        if ~isfield(obj.opts, 'scs'), obj.opts.scs = struct; end
+        if ~isfield(obj.opts,'verbose'), obj.opts.verbose = 0; end
 
     end
 
