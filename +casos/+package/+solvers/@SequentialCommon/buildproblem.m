@@ -13,6 +13,10 @@ opts = obj.opts;
 % sparsity patterns
 base_x = sparsity(nlsos.x);
 
+
+%% build quadratic SOS problem
+
+t_build_QP_start = tic;
 % Jacobians
 Df = jacobian(nlsos.f,nlsos.x);
 Dg = jacobian(nlsos.g,nlsos.x);
@@ -22,7 +26,6 @@ B = casadi.SX.sym('B',nnz(base_x),nnz(base_x));
 
 Hf = casos.PSOperator(B,base_x,base_x);
 
-%% build quadratic SOS problem
 sos_qp = [];
 % convex decision variables
 sos_qp.x = casos.PS.sym('x_convex',base_x);
@@ -65,6 +68,10 @@ obj.sparsity_gs = obj.solver_convex.sparsity_gs;
 basis_nlsos_x = poly2basis(nlsos.x);
 basis_nlsos_p = poly2basis(nlsos.p);
 
+obj.build_time_struct.t_build_QP = toc(t_build_QP_start);
+
+
+t_build_con_vio_start = tic;
 if strcmpi(obj.opts.con_vio_check,'signed-distance')
     %% constraint violation check via signed distance
     % sparsity patterns of nonlinear constraints
@@ -114,10 +121,56 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
     if isfield(sosopt.Kc, 'lin')
         sosopt.Kc = rmfield(sosopt.Kc, 'lin');
     end
-    sosopt.error_on_fail = true;
+
+    % we do our own check during the iterations
+    sosopt.error_on_fail = false;
 
     % initialize convex SOS solver
     obj.solver_con_vio = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_con_vio,sosopt);
+
+elseif strcmpi(obj.opts.con_vio_check,'projection')
+
+    % get cone dimensions
+    Ml = get_dimension(obj.get_cones,opts.Kc,'lin');
+    Ms = get_dimension(obj.get_cones,opts.Kc,'sos');
+
+    % create logical indices for SOS
+    I = [false(Ml,1); true(Ms,1)];
+
+    % create function to check the linear equality constraints violation
+    coordinates_lin = poly2basis(nlsos.g,~I);
+    nnz_lin = coordinates_lin.nnz;
+
+    % set upper and lower bounds
+    ub = casadi.SX.sym('ub', nnz_lin, 1);
+    lb = casadi.SX.sym('lb', nnz_lin, 1);
+
+    % create function to evaluate the violation of the linear cone 
+    obj.linvio = casadi.Function('linvio', {basis_nlsos_x, basis_nlsos_p, lb, ub}, {[coordinates_lin-ub; lb-coordinates_lin]});
+
+    % Gram decision variable
+    s_proj = casos.PS.sym('q',grambasis(nlsos.g,I));
+
+    % projection error
+    e = s_proj - nlsos.g;
+
+    % define Q-SOS problem:
+    %   min ||s-p||^2 s.t. s is SOS
+    sos_proj = struct('x',s_proj, ...
+                      'f',dot(e,e),...
+                      'p',[nlsos.p; nlsos.x]);
+
+
+
+    % SOS options
+    sosopt_proj               = opts.sossol_options;
+    sosopt_proj.Kx            = struct('sos',length(s_proj));
+
+    sosopt_proj.error_on_fail = false;
+
+    % initialize convex SOS solver
+    obj.solver_con_vio = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_proj,sosopt_proj);
+
 else
     % evaluate constraints on sample points
     X  = casadi.SX.sym('x',nlsos.g.nvars,1);
@@ -126,7 +179,12 @@ else
     obj.eval_constraint_samples = casadi.Function('g', {basis_nlsos_x, X}, {casadi.SX(G)});
 end
 
+obj.build_time_struct.t_build_con_vio = toc(t_build_con_vio_start);
+
 %% Second-order correction (soc)
+
+t_build_soc_start = tic;
+
 if obj.opts.enable_soc
     % parameter of current qp solution
     x_star_par   = casos.PS.sym('x_star',base_x);
@@ -162,7 +220,13 @@ if obj.opts.enable_soc
     obj.solver_soc = casos.package.solvers.sossolInternal('SOS',opts.sossol,sos_soc,sosopt);
 end
 
-%% Damped BFGS (see Nocedal p.536/537)
+obj.build_time_struct.t_build_soc = toc(t_build_soc_start);
+
+%% Hessian Estimation
+
+t_build_hessian_start = tic;
+
+
 lam_gs    = casos.PS.sym('lam_gs', obj.sparsity_g);
 x_k1      = casos.PS.sym('x_k1',base_x);
 
@@ -177,7 +241,7 @@ obj.eval_L = casos.Function('L',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, {lag
 % Hessian of Langrangian; in case we use BFGS, we do not have to explictly
 % compute the Hessian. The hessian call also returns the gradient of the
 % Lagrangian, hence it is projected and differentiated only once.
-if ~strcmpi(obj.opts.hessian_approx,'BFGS')
+if ~strcmpi(obj.opts.hessian_approx,'damped_bfgs')
     % current work around, because poly. hessian does not output jacobian
     [L_xx, dLdx0] = hessian(poly2basis(lagrangian), basis_nlsos_x);
     obj.eval_Hessian = casos.Function('H',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { L_xx });
@@ -206,23 +270,171 @@ B     = casadi.MX.sym('B',[size(B,1),size(B,1)]);
 obj.eval_r = casos.Function('f',{B,theta,y,s}, {theta*y+(1-theta)*B*s});
 
 % B = B + (r*r')/(s'*r) - (B*s*s'*B)/(s'*B*s)
-obj.damped_bfgs =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
+obj.update_hessian_damped_bfgs =  casadi.Function('f',{B,r,s}, {B - (B*(s*s')*B)/(s'*B*s) + (r*r')/(s'*r)});
+
+
+obj.build_time_struct.t_build_hessian = toc(t_build_hessian_start);
 
 %% evaluation functions
+t_build_eval_functions_start = tic;
+
+
 % nonlinear cost function
 obj.eval_cost      = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { full(nlsos.f) });
+
 % gradient cost
 obj.eval_gradCost  = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, { op2basis( Df ) });
+
 % norm gradient langrangian
 obj.eval_gradLag =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dLdx0,inf ) });
+
+% inf-norm of lambda*constraint
 obj.eval_gradLag_inf_norm  =  casos.Function('f',{basis_nlsos_x,basis_nlsos_p,basis_lam_gs}, { norm(dot(lam_gs,nlsos.g),inf) });
+
+% step norms of primal and dual iterates
+xk_step  = casadi.SX.sym('x_k',nnz(base_x),1);
+xk1_step = casadi.SX.sym('x_k1',nnz(base_x),1);
+dk_step  = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
+dk1_step = casadi.SX.sym('dual_k1',obj.sparsity_g.nnz,1);
+
+% function for delta in primal, dual 
+obj.eval_step_norms = casadi.Function('f',{xk_step,xk1_step,dk_step,dk1_step}, ...
+    {norm(xk_step,inf), norm(xk1_step-xk_step,inf), norm(dk_step,inf), norm(dk1_step-dk_step,inf)});
+
+% thresholds of the first-order optimality termination checks
+f_val   = casadi.SX.sym('f');   % cost
+gln_val = casadi.SX.sym('gln'); % ||lambda*constraints||_inf
+gl_val  = casadi.SX.sym('gl');  % dual
+dxi_val = casadi.SX.sym('dxi'); % search direction
+tol_val = casadi.SX.sym('tol'); % tolerance
+
+% one function for all termination criteria (compute scaled termination
+% criteria)
+obj.eval_termination = casadi.Function('f',{f_val,gln_val,gl_val,dxi_val,tol_val}, ...
+    {(tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, ...   % lagrange derivative 
+    (10*tol_val*fmax(1,abs(f_val)) + gln_val)/dxi_val, ... % lagrange derivative  (relaxed)
+     tol_val*fmax(1,gl_val)});          
+
+nabla_L_val_inf = casadi.SX.sym('nL');   % value of lagrange function derivative
+
+% store the scaled lagrange derivative (for plotting over iterations)
+obj.scaled_nabla_L_inf = casadi.Function('f',{f_val,gln_val,gl_val,dxi_val, nabla_L_val_inf}, ...
+    { (nabla_L_val_inf*dxi_val - gln_val)  /(fmax(1,abs(f_val)))});    
+
+% directional derivative of the cost along the search direction
+x_star_dir = casos.PS.sym('x_star',base_x);
+
+% search direction
+obj.eval_nabla_f_dir = casos.Function('f',{basis_nlsos_x, poly2basis(x_star_dir), basis_nlsos_p}, ...
+                                          { dot(Df, x_star_dir - nlsos.x) });
+
+% compute new solution candidate
+alpha_ls = casadi.SX.sym('alpha');
+dk_ls    = casadi.SX.sym('dk',nnz(base_x),1);
+
+% compute new-solution candidate
+x_k1_ls = basis_nlsos_x + alpha_ls*dk_ls;
+
+% get evaluation functions for filter (distinguish input i.e. classic or as
+% Lagrange function filter)
+if strcmpi(obj.opts.con_vio_check,'signed-distance')
+    if obj.opts.filter_struct.lagrange_filter
+        dkl_ls = casadi.SX.sym('dkl',obj.sparsity_g.nnz,1);
+        dual_k_ls = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,dkl_ls,dual_k_ls,lb,ub}, ...
+            {x_k1_ls, obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), obj.eval_L(x_k1_ls,basis_nlsos_p,dual_k_ls + alpha_ls*dkl_ls)});
+    else
+        % one function to compute new solution candidate, lin. constraint
+        % violation and cost (for filter)
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,lb,ub}, ...
+            {x_k1_ls, ...                                       % new sol. candidate
+             obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), ... % lin. constraints
+             obj.eval_cost(x_k1_ls,basis_nlsos_p)});            % cost
+    end
+
+elseif strcmpi(obj.opts.con_vio_check,'projection')
+
+    if obj.opts.filter_struct.lagrange_filter
+        dkl_ls = casadi.SX.sym('dkl',obj.sparsity_g.nnz,1);
+        dual_k_ls = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,dkl_ls,dual_k_ls,lb,ub}, ...
+            {x_k1_ls, obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), obj.eval_L(x_k1_ls,basis_nlsos_p,dual_k_ls + alpha_ls*dkl_ls)});
+    else
+        % one function to compute new solution candidate, lin. constraint
+        % violation and cost (for filter)
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,lb,ub}, ...
+            {x_k1_ls, ...                                       % new sol. candidate
+             obj.linvio(basis_nlsos_x,basis_nlsos_p,lb,ub), ... % lin. constraints
+             obj.eval_cost(x_k1_ls,basis_nlsos_p)});            % cost
+    end
+
+else % sampling
+
+    % evaluate at current solution and samples
+    g_x_k1_ls = obj.eval_constraint_samples(x_k1_ls,X);
+
+    % from all constraints get the smallest function value
+    all_violations_ls = min(g_x_k1_ls);
+    % get the overall smallest value
+    theta_ls = fmax(0,-all_violations_ls);
+
+    if obj.opts.filter_struct.lagrange_filter
+        dkl_ls = casadi.SX.sym('dkl',obj.sparsity_g.nnz,1);
+        dual_k_ls = casadi.SX.sym('dual_k',obj.sparsity_g.nnz,1);
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,dkl_ls,dual_k_ls,X}, ...
+            {x_k1_ls, all_violations_ls, theta_ls, obj.eval_L(x_k1_ls,basis_nlsos_p,dual_k_ls + alpha_ls*dkl_ls)});
+    else
+        obj.eval_x_k1 = casos.Function('x_k1', ...
+            {basis_nlsos_x,basis_nlsos_p,alpha_ls,dk_ls,X}, ...
+            {x_k1_ls, all_violations_ls, theta_ls, obj.eval_cost(x_k1_ls,basis_nlsos_p)});
+    end
+end
+
+nabla_f_dir_ls = casadi.SX.sym('nabla_f_dir');
+theta_xk_ls    = casadi.SX.sym('theta_xk');
+theta_x_k1_ls  = casadi.SX.sym('theta_x_k1');
+f_x_k1_ls      = casadi.SX.sym('f_x_k1');
+f_xk_ls        = casadi.SX.sym('f_xk');
+
+% f-type switching: descent direction + progress in cost better than con. violation
+f_type_ls = (alpha_ls*nabla_f_dir_ls < 0) & ((-alpha_ls*nabla_f_dir_ls)^obj.opts.filter_struct.s_phi*alpha_ls^(1-obj.opts.filter_struct.s_phi) > obj.opts.filter_struct.delta*theta_xk_ls^obj.opts.filter_struct.s_theta);
+
+% check progress w.r.t. previous iteration
+% with relaxation based on Ipopt paper
+suff_decrease_ls = (theta_x_k1_ls - (1-obj.opts.filter_struct.gamma_theta)*theta_xk_ls <= 10*eps*abs(theta_xk_ls)) | (f_x_k1_ls - f_xk_ls + obj.opts.filter_struct.gamma_phi*theta_xk_ls <= 10*eps*abs(f_xk_ls));
+
+% check armijo-condition
+if obj.opts.filter_struct.lagrange_filter
+    L_k1_ls = casadi.SX.sym('L_k1');
+    L_k_ls = casadi.SX.sym('L_k');
+    x_star_ls = casadi.SX.sym('x_star',nnz(base_x),1);
+    armijo_ls = L_k1_ls <= L_k_ls + obj.opts.filter_struct.eta*obj.eval_dLdx(basis_nlsos_x,basis_nlsos_p,dual_k_ls)'*(x_star_ls - basis_nlsos_x);
+    obj.eval_suff_decrease = casos.Function('suff_decrease', ...
+        {alpha_ls,nabla_f_dir_ls,theta_xk_ls,theta_x_k1_ls,f_x_k1_ls,f_xk_ls,L_k1_ls,L_k_ls,x_star_ls,dual_k_ls,basis_nlsos_x,basis_nlsos_p}, ...
+        {f_type_ls,armijo_ls,suff_decrease_ls});
+else
+    % with relaxation based on Ipopt paper
+    armijo_ls = f_x_k1_ls - f_xk_ls - obj.opts.filter_struct.eta*alpha_ls*nabla_f_dir_ls <= 10*eps*abs(f_xk_ls);
+    obj.eval_suff_decrease = casos.Function('suff_decrease', ...
+        {alpha_ls,nabla_f_dir_ls,theta_xk_ls,theta_x_k1_ls,f_x_k1_ls,f_xk_ls}, ...
+        {f_type_ls,armijo_ls,suff_decrease_ls});
+end
+
 obj.eval_constraint = casos.Function('f',{basis_nlsos_x,basis_nlsos_p}, {poly2basis(nlsos.g)});
+
+obj.build_time_struct.t_build_eval_functions = toc(t_build_eval_functions_start);
+
 
 %% get parameter that are needed for initilization
 obj.init_para.no_dual_var   = obj.sparsity_g.nnz;
 obj.init_para.size_B        = nnz(base_x);
 
-if strcmpi(obj.opts.con_vio_check,'signed-distance')
+if strcmpi(obj.opts.con_vio_check,'signed-distance')  
     obj.init_para.con_vio.no_con = length(sos_con_vio.g);
 end
 

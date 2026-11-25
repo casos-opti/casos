@@ -14,7 +14,7 @@
 % constrain violation, than accept.
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function  [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,all_violations] = check_filter_acceptance(obj, ...
+function  [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,all_violations,status_flag] = check_filter_acceptance(obj, ...
     linesearch_filter, ...
     alpha, ...
     x_k, ...
@@ -24,12 +24,33 @@ function  [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,all_violations] = check_fil
     p0, ...
     args)
 
-% use Langrange function instead of cost function in filter
+import casos.package.UnifiedReturnStatus
+
+% use Lagrange function instead of cost function in filter
 lagrange_filter = obj.opts.filter_struct.lagrange_filter;
 
-% compute new solution candidate
-x_k1    = full(x_k     + alpha*dk);
+
+% we are good to go
+status_flag = 1;
+
 if strcmpi(obj.opts.con_vio_check,'signed-distance')
+
+    % violation of the linear constraints
+    lb = args{6}; 
+    ub = args{7}; 
+
+    % compute new solution candidate
+    if lagrange_filter
+        [x_k1,lin_violation,L_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,dkl,dual_k,lb,ub);
+        x_k1 = full(x_k1);
+        lin_violation = full(lin_violation);
+        L_k1 = full(L_k1);
+    else
+        [x_k1,lin_violation,f_x_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,lb,ub);
+        x_k1 = full(x_k1);
+        f_x_k1 = full(f_x_k1);
+    end
+
     % compute constraint violation of new solution candidate
     args_con_vio    =  args;
     args_con_vio{2} =  [p0; x_k1];
@@ -40,48 +61,99 @@ if strcmpi(obj.opts.con_vio_check,'signed-distance')
     args_con_vio{7} = [];
 
     sol_con_vio = eval_on_basis(obj.solver_con_vio, args_con_vio);
+    
+    % check solution status
+    switch (obj.solver_con_vio.get_stats.UNIFIED_RETURN_STATUS)
 
-    % violation of the linear constraints
-    lb = args{6}; 
-    ub = args{7}; 
-    lin_violation = obj.linvio(x_k1,p0,lb,ub);
+        case UnifiedReturnStatus.SOLVER_RET_SUCCESS    % optimal solution found
+            
+            sos_violation = sol_con_vio{1};
+            status_flag = 1;
+  
+        otherwise
+            % something went wrong
+            sos_violation = sol_con_vio{1};
+            status_flag = 0;
+
+    end
+
 
     % extract signed-distances
-    all_violations = [sol_con_vio{1}; lin_violation];
+    all_violations = [sos_violation; lin_violation];
 
     % get the largest one
     theta_x_k1 = full(max(0,max(all_violations)));
     
+elseif strcmpi(obj.opts.con_vio_check,'projection')
 
-    if theta_x_k1 == 0
-        stop = 1;
+    % violation of the linear constraints
+    lb = args{6}; 
+    ub = args{7}; 
+
+    % compute new solution candidate
+    if lagrange_filter
+        [x_k1,lin_violation,L_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,dkl,dual_k,lb,ub);
+        x_k1 = full(x_k1);
+        lin_violation = full(lin_violation);
+        L_k1 = full(L_k1);
+    else
+        [x_k1,lin_violation,f_x_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,lb,ub);
+        x_k1 = full(x_k1);
+        f_x_k1 = full(f_x_k1);
     end
+
+    % compute constraint violation of new solution candidate
+    args_con_vio    =  args;
+    args_con_vio{2} =  [p0; x_k1];
+    args_con_vio{3} =  []; % projection has no constraint
+    args_con_vio{4} =  [];
+
+    args_con_vio{6} = [];
+    args_con_vio{7} = [];
+
+    sol_con_vio = eval_on_basis(obj.solver_con_vio, args_con_vio);
+    
+
+    % check solution status
+    switch (obj.solver_con_vio.get_stats.UNIFIED_RETURN_STATUS)
+
+        case UnifiedReturnStatus.SOLVER_RET_SUCCESS    % optimal solution found
+
+            sos_violation = sol_con_vio{2};
+            status_flag = 1;
+
+        otherwise
+            % something went wrong
+            sos_violation = sol_con_vio{2};
+            status_flag = 0;
+
+    end
+
+
+    % extract projection: cost gives us minimum. violation
+    all_violations = [sos_violation; lin_violation];
+
+    % get the largest one
+    theta_x_k1 = full(max(0,max(all_violations)));
+
 else
     % evalaute at current solution and samples
-    g_val = full(obj.eval_constraint_samples(x_k1,obj.opts.user_sample));
-
-    % from all constraints get the smallest function value
-    all_violations  = min(g_val);
-
-    % get the overall smallest value
-    min_vio = min(min(g_val));
-    if min_vio < 0
-        theta_x_k1 = abs(min_vio);
+    if lagrange_filter
+        [x_k1,all_violations,theta_x_k1,L_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,dkl,dual_k,obj.opts.user_sample);
+        x_k1 = full(x_k1);
+        all_violations = full(all_violations);
+        theta_x_k1 = full(theta_x_k1);
+        L_k1 = full(L_k1);
     else
-        theta_x_k1 = 0; % all samples positive; no violation
+        [x_k1,all_violations,theta_x_k1,f_x_k1] = obj.eval_x_k1(x_k,p0,alpha,dk,obj.opts.user_sample);
+        x_k1 = full(x_k1);
+        all_violations = full(all_violations);
+        theta_x_k1 = full(theta_x_k1);
+        f_x_k1 = full(f_x_k1);
     end
-
-end
-% cost at trial point
-if lagrange_filter
-    dual_k1 = full(dual_k  + alpha*dkl);
-    L_k1     = full(obj.eval_L(x_k1,p0,dual_k1));
-else
-    f_x_k1   = full(obj.eval_cost(x_k1,p0));
 end
 
-
-% check filter acceptance
+%% check filter acceptance
 % get filter inputs
 theta_l = linesearch_filter(:,1);
 f_l     = linesearch_filter(:,2);
@@ -107,4 +179,4 @@ else
     filter_acceptance = 1;
 end
 
-end
+end % end of function

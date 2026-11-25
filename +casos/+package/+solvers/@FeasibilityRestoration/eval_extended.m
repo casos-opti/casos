@@ -6,9 +6,10 @@
 
 function [sol_iter,sol,filter_glob,feasibility_flag,stats_glob] = eval_extended(obj,filter_glob,x_R,theta_x_R0,p0,solver,stats_glob,iter_glob)
 
+t_solve = tic;
+
 % original parameter
 p00 = p0;
-
 
 % parameter for feasibility restoration: actual parameter and iterate where
 % the restoration was/is invoked
@@ -64,8 +65,10 @@ f_x_k     = full(obj.eval_cost(x_k,p0));
 
 linesearch_filter = [max(1,theta_x_k)*10, inf];
 
-lambda_min = 0.01;
-lambda_max = 1;
+
+lambda_min = obj.opts.sigma_min;
+lambda_max = obj.opts.sigma_max;
+
 lambda0 = lambda_min + (lambda_max-lambda_min)*1/(1+(max(theta_x_k,obj.opts.tolerance_con)-obj.opts.tolerance_con)/obj.opts.tolerance_con);
 
 % parameter for feasibility restoration: actual parameter and iterate where
@@ -73,16 +76,16 @@ lambda0 = lambda_min + (lambda_max-lambda_min)*1/(1+(max(theta_x_k,obj.opts.tole
 p0 = [p00; x_R;lambda0 ];
 
 iter      = 1;
-kappa_res = 0.9;
+kappa_res = obj.opts.kappa_res;
+
 
 % just for display output in first iteration
 delta_xi_double   = norm(full( casadi.DM(x_k)),inf);
 delta_dual_double = norm(full( (dual_k)),inf);
 alpha_k            = 1;
-
+time_limit_reached = false;
 feasibility_flag = 0;
 
-t_solve = tic;
 while iter <= obj.opts.max_iter
 
     printf(obj.log,'debug','r%-8dr%-15er%-15er%-15er%-15er%-10fr%-10e\n',...
@@ -112,27 +115,31 @@ while iter <= obj.opts.max_iter
 
     % compute solution of current iterate: solve Q-SDP, perform linesearch and update BFGS
     [sol_iter,sol_qp,feas_res_flag,stats,obj,linesearch_filter,Bk] = do_single_iteration(obj, ...
-        iter,...
-        x_k,...
-        dual_k,...
-        theta_x_k,...
-        f_x_k,...
-        Bk,...
-        p0,...
-        args, ...
-        linesearch_filter, ...
-        stats);
+                                                                                        iter,...
+                                                                                        x_k,...
+                                                                                        dual_k,...
+                                                                                        theta_x_k,...
+                                                                                        f_x_k,...
+                                                                                        Bk,...
+                                                                                        p0,...
+                                                                                        args, ...
+                                                                                        linesearch_filter, ...
+                                                                                        stats);
 
     %% check feasibility;
     % feasibility restoration does not have a feasibility restoration
     if feas_res_flag == 1
         % QP  of feasibility restoration is also infeasible --> Problem
         % seems infeasible
-        feasibility_flag = 0;
+        feasibility_flag = -1;
         break
     elseif feas_res_flag == 2
         % alpha below alpha min i.e. solver stalled
-        feasibility_flag = -1;
+        feasibility_flag = -2;
+        break
+    elseif feas_res_flag == 3
+        % numerical issues in constraint violation check
+        feasibility_flag = -3;
         break
     else
 
@@ -199,11 +206,18 @@ while iter <= obj.opts.max_iter
 
     iter = iter + 1;
 
+    % at the end of the loop, check solve time
+    if toc(t_solve) >= obj.opts.max_time && iter <= obj.opts.max_iter
+        % abort: maximum solve time reached
+        time_limit_reached = true;
+        break
+    end
+
 end % end of while
 
 
-if iter >= obj.opts.max_iter
-    % if max. number of iterations reached, the solver stalled
+if iter >= obj.opts.max_iter ||  time_limit_reached
+    % if max. number of iterations or time reached, the solver stalled
     feasibility_flag = -1;
 end
 

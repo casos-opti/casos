@@ -19,32 +19,29 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function H_reg = regularize_hessian(H)
+function H_reg = hessian_regularization_frobenius(H)
 
-% Check if the input matrix is symmetric
-if ~issymmetric(H)
-    H = (H + H') / 2;
-end
+    if nargin < 2
+        epsilon = sqrt(eps);          % relative floor, ~1.5e-8
+    end
 
-% Perform Eigenvalue Decomposition (EVD)
-[Q, D] = eig(H); % Q: Eigenvectors, D: Diagonal matrix of eigenvalues
+    H = (H + H') / 2;                 % enforce symmetry
 
-% Extract eigenvalues from diagonal matrix D
-lambda = diag(D);
+    [Q, lambda] = eig(H, 'vector');   % orthonormal Q for symmetric H
+    tau = epsilon * max(norm(H, 'fro'), 1);
 
-epsilon = 1e-6;
+    % with relaxation based on Ipopt paper
+    if min(lambda) <= tau + 10*eps*max(1,abs(tau))
+        lambda_reg = max(lambda, tau);
 
-% use Frobenius norm of current approximation
-tau = max(epsilon * norm(H, 'fro'),epsilon);
+        H_reg = Q * diag(lambda_reg) * Q';   % nearest PD in Frobenius norm
 
-% Regularize eigenvalues: replace negative or small values with tau
-lambda_reg = max(lambda, tau);
+        H_reg = (H_reg + H_reg') / 2;
 
-% Reconstruct the regularized Hessian
-D_reg = diag(lambda_reg); % Create the diagonal matrix of regularized eigenvalues
-H_reg = Q * D_reg * Q';   % Reconstruct the Hessian using eigenvectors and regularized eigenvalues
+    else
 
-% Ensure symmetry (numerical precision may cause small asymmetries)
-H_reg = (H_reg + H_reg') / 2;
+        H_reg = H;
+        
+    end
 
 end

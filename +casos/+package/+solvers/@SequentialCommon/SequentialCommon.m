@@ -19,8 +19,12 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
             'hessian_init','Method to initialize Hessian.'
             'hessian_approx','Hessian (Lagrangian) approximation method'
             'max_iter', 'Maximum number of iterations.'
+            'max_time','Maximum allowed solve time.'
             'almost_opt_count','Number of iterations to check for almost optimal. '
             'feasibility_restoration','Control cost function of feasibility restoration.'
+            'sigma_min','Minimum value for restoration slack variable'
+            'sigma_max','Maximum value for restoration slack variable'
+            'kappa_res','Parameter for filter acceptance in restoration,'
             'con_vio_check','Select method for constraint violation check'
             'user_sample','If sampling is used, user can provide samples.'
             'verbose', 'Turn on/off iteration display.'}
@@ -42,12 +46,15 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         eval_L;
         eval_dLdx;
 
-        % linesearch
+        % line search
         eval_gradCost;
         eval_constraint_samples;
+        eval_nabla_f_dir;
+        eval_x_k1;
+        eval_suff_decrease;
 
         % damped BFGS
-        damped_bfgs;
+        update_hessian_damped_bfgs; % update function of the actual bfgs
         eval_s;
         eval_y;
         eval_r;
@@ -58,13 +65,18 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
         eval_gradLag;
         eval_gradLag_inf_norm;
         eval_Hessian;
+        eval_step_norms;
+        eval_termination;
+        scaled_nabla_L_inf; % for plotting
 
         % parameters
         init_para;
         feas_res_para;
         display_para;
+       
 
         % logging & info
+        build_time_struct
         log;
         status = casos.package.UnifiedReturnStatus.SOLVER_RET_LIMITED;
         sequential_stats = struct('iter',[]);
@@ -94,9 +106,9 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
 
     methods (Static)
         % iteration for overloading/hessian approximation
-        varargout = regularize_hessian(varargin);
-        varargout = hessian_levenberg(varargin);
-        varargout = hessian_regularization(varargin);
+        varargout = hessian_regularization_frobenius(varargin);
+        varargout = hessian_regularization_levenberg(varargin);
+        varargout = hessian_damped_bfgs(varargin);
     end
 
     methods
@@ -130,20 +142,6 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
                 nlsos.g = casos.PS(nlsos.g);
             end
 
-            % defaut parameter
-            filter_struct = struct();
-
-            filter_struct.alpha_max       = 1;
-            filter_struct.s_theta         = 1.1;
-            filter_struct.s_phi           = 2.3;
-            filter_struct.gamma_theta     = 1e-5;
-            filter_struct.gamma_phi       = 1e-5;
-            filter_struct.gamma_alpha     = 0.05;
-            filter_struct.delta           = 0.8;
-            filter_struct.eta             = 1e-4;
-            filter_struct.lagrange_filter = 0;
-            filter_struct.theta_min       = 1e-4;
-
             % make sure cholseky option is passed
             % sossol_options0.sdpsol_options.cholesky_method = 'num';
 
@@ -160,7 +158,7 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
 
             % --- Hessian approximation ---
             % select method
-            if ~isfield(obj.opts,'hessian_approx'), obj.opts.hessian_approx                     = 'regularization'; end
+            if ~isfield(obj.opts,'hessian_approx'), obj.opts.hessian_approx                     = 'regularization_frobenius'; end
             % how to initialize hessian
             if ~isfield(obj.opts,'hessian_init'),   obj.opts.hessian_init                       = 'analytical'; end
             %initial scaling factor for Hessian 
@@ -168,15 +166,30 @@ classdef (Abstract) SequentialCommon < casos.package.solvers.SosoptCommon
 
             % feasibility restoration
             if ~isfield(obj.opts,'feasibility_restoration'), obj.opts.feasibility_restoration   = 'regularize'; end
+            if ~isfield(obj.opts,'kappa_res'), obj.opts.kappa_res   = 0.9; end
+            if ~isfield(obj.opts,'sigma_min'), obj.opts.sigma_min   = 0.01; end
+            if ~isfield(obj.opts,'sigma_max'), obj.opts.sigma_max   = 1; end
+
 
             % flag to turn on/off second order correction
             if ~isfield(obj.opts,'enable_soc'), obj.opts.enable_soc                             = true; end
 
             % structure with parameter for filter
-            if ~isfield(obj.opts,'filter_struct'), obj.opts.filter_struct                       = filter_struct; end
+            if ~isfield(obj.opts,'filter_struct'), obj.opts.filter_struct                                 = struct; end
+            if ~isfield(obj.opts.filter_struct,'alpha_max'),       obj.opts.filter_struct.alpha_max       = 1; end
+            if ~isfield(obj.opts.filter_struct,'s_theta'),         obj.opts.filter_struct.s_theta         = 1.1; end
+            if ~isfield(obj.opts.filter_struct,'s_phi'),           obj.opts.filter_struct.s_phi           = 2.3; end
+            if ~isfield(obj.opts.filter_struct,'gamma_theta'),     obj.opts.filter_struct.gamma_theta     = 1e-5; end
+            if ~isfield(obj.opts.filter_struct,'gamma_phi'),       obj.opts.filter_struct.gamma_phi       = 1e-5; end
+            if ~isfield(obj.opts.filter_struct,'gamma_alpha'),     obj.opts.filter_struct.gamma_alpha     = 0.05; end
+            if ~isfield(obj.opts.filter_struct,'delta'),           obj.opts.filter_struct.delta           = 0.8; end
+            if ~isfield(obj.opts.filter_struct,'eta'),             obj.opts.filter_struct.eta             = 1e-4; end
+            if ~isfield(obj.opts.filter_struct,'lagrange_filter'), obj.opts.filter_struct.lagrange_filter = 0; end
+            if ~isfield(obj.opts.filter_struct,'theta_min'),       obj.opts.filter_struct.theta_min       = 1e-4; end
+            
             % maximum number of iterations
             if ~isfield(obj.opts,'max_iter'), obj.opts.max_iter                                 = 100; end
-
+            if ~isfield(obj.opts,'max_time'), obj.opts.max_time                                 = 3600; end
             % counter to check if we are close/almost optimal 
             % (in case of less progress for almost_opt_count iterations)
             if ~isfield(obj.opts,'almost_opt_count'), obj.opts.almost_opt_count                 = 10; end

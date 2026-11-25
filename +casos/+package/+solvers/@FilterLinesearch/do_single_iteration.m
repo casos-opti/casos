@@ -73,27 +73,36 @@ while alpha > alpha_min
     dk   = (x_star    - x_k);
     dkl  = (dual_star-dual_k);
 
+    dual_k1 = dual_k + alpha*(dual_star-dual_k);
 
     t_filter_accept = tic;
     % check filter acceptance
-    [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,constraint_violation] = check_filter_acceptance(obj,...
-                                                                                                linesearch_filter,...
-                                                                                                alpha,...
-                                                                                                x_k,...
-                                                                                                dual_k,...
-                                                                                                dk,...
-                                                                                                dkl,...
-                                                                                                p0,...
-                                                                                                args);
+    [x_k1,theta_x_k1,f_x_k1 ,filter_acceptance,constraint_violation,status_flag_conVio] = check_filter_acceptance(obj,...
+                                                                                                            linesearch_filter,...
+                                                                                                            alpha,...
+                                                                                                            x_k,...
+                                                                                                            dual_k,...
+                                                                                                            dk,...
+                                                                                                            dkl,...
+                                                                                                            p0,...
+                                                                                                            args);
 
     measFilterAcceptTime = toc(t_filter_accept);
-
-    dual_k1 = dual_k + alpha*(dual_star-dual_k);
+    
+    % check if something went wrong during e.g. signed-distance
+    if ~status_flag_conVio
+        % ensure we add this point to filter, so we do not get their again
+        f_type = 0;
+        armijo = 0;
+        feas_res_flag = 1;
+        break
+    end
 
     % heuristic: there might be blocking entries in the filter:
     % check first-order optimality conditions to potentially aboard
     % linesearch early as possible if we are "optimal"
-    if full(obj.eval_gradLag(x_k1,p0,dual_k1))  <= obj.opts.tolerance_opt*max(1,full(obj.eval_gradLag(x_k1,p0,dual_k1))) ...
+    gradLag_k1 = full(obj.eval_gradLag(x_k1,p0,dual_k1));
+    if gradLag_k1 <= obj.opts.tolerance_opt*max(1,gradLag_k1) ...
                                                     && theta_x_k1 <= obj.opts.tolerance_con
         feas_res_flag = 0;
         break
@@ -199,7 +208,7 @@ while alpha > alpha_min
     alpha = 1/2*alpha;
 
     % compute alpha_min
-    alpha_min = compute_alpha_min(obj,x_k,dk,p0,theta_xk,linesearch_filter);
+    alpha_min = compute_alpha_min(obj,x_k,x_star,p0,theta_xk,linesearch_filter);
 
     % if alpha < alpha_min  % just avoid very small step lengths
     %     % invoke feasibility restoration if step-length is below minimum
@@ -243,27 +252,32 @@ stats{iter}.constraint_violation = constraint_violation;
 
 t_hess_approx = tic;
 % update quasi-Newton/exact Hessian
-if strcmpi(obj.opts.hessian_approx,'BFGS')
+if strcmpi(obj.opts.hessian_approx,'damped_bfgs')
     % damped BFGS
-    Bk = damped_bfgs(obj,Bk,x_k,p0,sol_iter,iter);
+    Bk = casos.package.solvers.SequentialCommon.hessian_damped_bfgs(obj,Bk,x_k,p0,sol_iter);
 
-elseif strcmpi(obj.opts.hessian_approx,'levenberg')
+elseif strcmpi(obj.opts.hessian_approx,'regularization_levenberg')
     % see Betts book
     H  = full(obj.eval_Hessian(x_k1,p0,dual_k1));
-    Bk = casos.package.solvers.SequentialCommon.hessian_levenberg(H);
+    Bk = casos.package.solvers.SequentialCommon.hessian_regularization_levenberg(H);
 
-elseif strcmpi(obj.opts.hessian_approx,'regularization')
+elseif strcmpi(obj.opts.hessian_approx,'regularization_frobenius')
     % own regularization method
     H = full(obj.eval_Hessian(x_k1,p0,dual_k1));
-    Bk = casos.package.solvers.SequentialCommon.regularize_hessian(H);
+    Bk = casos.package.solvers.SequentialCommon.hessian_regularization_frobenius(H);
 
-elseif strcmpi(obj.opts.hessian_approx,'mirroring')
+elseif strcmpi(obj.opts.hessian_approx,'regularization_mirror')
     % Verschueren
     H = full(obj.eval_Hessian(x_k1,p0,dual_k1));
-    [L,D] = ldl(H);
-
-    D(D<0) = 1e-6;
-    Bk = L*abs(D)*L';
+    try
+        [Dd,LT] = ldl(casadi.DM(H));
+        d = full(Dd);
+        d(d<0) = 1e-6;
+        L = casadi.DM.eye(length(d)) + LT';
+        Bk = full(L*abs(casadi.DM(diag(d)))*L');
+    catch
+        Bk = casos.package.solvers.SequentialCommon.hessian_regularization_levenberg(H);
+    end
 
 else
     error('Unknown option "%s" for Hessian approximation.',obj.opts.hessian_approx)

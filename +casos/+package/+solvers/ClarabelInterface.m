@@ -25,9 +25,8 @@ methods
         % Construct Clarabel interface.
         obj@casos.package.solvers.AbstractSCSInterface(name,conic,varargin{:});
 
-        % default options
-        % see default setting structure of Clarabel MATLAB interface
-        if ~isfield(obj.opts,'clarabel'), obj.opts.clarabel = DefaultSettings; end
+        % set options to empty struct if there are none
+        if ~isfield(obj.opts, 'clarabel'), obj.opts.clarabel = struct; end
     end
 
     function s = info(obj)

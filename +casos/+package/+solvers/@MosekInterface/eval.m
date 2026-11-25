@@ -41,8 +41,6 @@ msk_prob.barf.val = full(data.f);
 % options to MOSEK
 msk_param = obj.opts.mosek_param;
 msk_param.MSK_IPAR_AUTO_UPDATE_SOL_INFO = 'MSK_ON';
-msk_param.MSK_IPAR_INTPNT_BASIS         = 'MSK_BI_NEVER';
-% msk_param.MSK_IPAR_INTPNT_STARTING_POINT = 'MSK_STARTING_POINT_CONSTANT';
 msk_echo  = obj.opts.mosek_echo;
 
 % build MOSEK command string
@@ -99,39 +97,39 @@ if ~isempty(msk_sol)
              % compute relative primal-dual gap
             relativeGap = abs(res.info.MSK_DINF_SOL_ITR_PRIMAL_OBJ - res.info.MSK_DINF_SOL_ITR_DUAL_OBJ) ...
                           / max([abs(res.info.MSK_DINF_SOL_ITR_PRIMAL_OBJ), abs(res.info.MSK_DINF_SOL_ITR_DUAL_OBJ)]);
-            
+
             % compute max primal constraint violation across different categories
             primMaxVio = max([abs(res.info.MSK_DINF_SOL_ITR_PVIOLCON), ...   % General constraints
                               abs(res.info.MSK_DINF_SOL_ITR_PVIOLACC), ...   % Affine conic constraints
                               abs(res.info.MSK_DINF_SOL_ITR_PVIOLCONES), ... % Conic constraints
                               abs(res.info.MSK_DINF_SOL_ITR_PVIOLVAR)]);     % Variable bound violations
-            
+
             % compute max dual constraint violation across different categories
             dualMaxVio = max([abs(res.info.MSK_DINF_SOL_ITR_DVIOLCON), ... % General constraints
                               abs(res.info.MSK_DINF_SOL_ITR_DVIOLACC), ... % Affine conic constraints
                               abs(res.info.MSK_DINF_SOL_ITR_DVIOLCONES), ... % Conic constraints
                               abs(res.info.MSK_DINF_SOL_ITR_DVIOLVAR)]); % Variable bound violations
-            
+
             % compute optimality measure from Mosek's solver status
             % it should converge to +1 to be optimal
             optMeas = res.info.MSK_DINF_INTPNT_OPT_STATUS;
-            
+
             % check for potential ill-conditioning by looking at large norm values
             maxNorm = max([res.info.MSK_DINF_SOL_ITR_NRM_XX, ... % Norm of primal variables
                            res.info.MSK_DINF_SOL_ITR_NRM_Y]);    % Norm of dual variables
-            
+
             % define an adaptive feasibility tolerance based on problem scale
             % if the objective values are large, allow a slightly relaxed threshold
             feasibilityTol = obj.opts.augmented_check.feasTol * max(1, max([abs(res.info.MSK_DINF_SOL_ITR_PRIMAL_OBJ), ...
                                                                                       abs(res.info.MSK_DINF_SOL_ITR_DUAL_OBJ)]));
-            
+
             % log values for decision logic
             obj.solver_stats.acceptable_solution.primMaxVio  = primMaxVio;
             obj.solver_stats.acceptable_solution.dualMaxVio  = dualMaxVio;
             obj.solver_stats.acceptable_solution.relativeGap = relativeGap;
             obj.solver_stats.acceptable_solution.optMeas     = optMeas;
             obj.solver_stats.acceptable_solution.maxNorm     = maxNorm;
-            
+
             % store the decision values thresholds
             % user can check what led to the decision
             obj.solver_stats.acceptable_solution.tolerances.primMaxVio  = feasibilityTol;
@@ -139,7 +137,7 @@ if ~isempty(msk_sol)
             obj.solver_stats.acceptable_solution.tolerances.relativeGap = obj.opts.augmented_check.relativeGap;
             obj.solver_stats.acceptable_solution.tolerances.maxNorm     = obj.opts.augmented_check.maxNorm;
             obj.solver_stats.acceptable_solution.tolerances.optMeas     = obj.opts.augmented_check.optMeas;
-            
+
             % decision logic for solution acceptability
             if (relativeGap < obj.opts.augmented_check.relativeGap) ...    % ensure relative gap is less than 5%
                && (primMaxVio <= feasibilityTol) ...                       % check primal feasibility within adaptive tolerance

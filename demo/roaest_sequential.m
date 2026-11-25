@@ -46,9 +46,10 @@ p = x'*x;
 % options
 opts = struct('sossol','mosek');
 opts.verbose = 1;
-opts.hessian_approx = 'mirroring';
-% opts.hessian_init   = 'identity';
-% opts.scale_bfgs0    = 1e-3;
+
+opts.hessian_approx = 'regularization_frobenius';
+opts.con_vio_check  = 'signed-distance';
+
 
 sos = struct('x',[V;s2;s1;b],'f',b,'p',[]);
 

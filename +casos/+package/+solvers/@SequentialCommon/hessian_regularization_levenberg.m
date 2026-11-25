@@ -13,14 +13,13 @@
 %
 % Inputs:
 %   H   - (n x n) Hessian matrix (must be symmetric)
-%   tau - Regularization parameter (small positive scalar, e.g., 1e-6)
 %
 % Output:
 %   H_reg - Regularized positive definite Hessian matrix
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function H_regularized = hessian_levenberg(H)
+function H_regularized = hessian_regularization_levenberg(H)
 
 epsilon = sqrt(eps);
 
@@ -37,11 +36,7 @@ gershgorin_bound = h_diag - (row_sum - abs(h_diag));
 sigma = min(gershgorin_bound);
 
 % Determine tau based on sigma
-if sigma > 0
-    tau = 0; % Already positive definite
-else
-    tau = (epsilon - sigma) / (abs(sigma) + 1);
-end
+tau = max(0, epsilon - sigma) / (abs(sigma) + 1);
 
 
 % Add the regularization term to the Hessian
