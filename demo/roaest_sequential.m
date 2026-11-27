@@ -1,4 +1,4 @@
-% SPDX-FileCopyrightText: 2025 Institute of Flight Mechanics and Controls, University of Stuttgart
+% SPDX-FileCopyrightText: 2026 Institute of Flight Mechanics and Controls, University of Stuttgart
 % SPDX-FileCopyrightText: Author(s): Torbjørn Cunis and Jan Olucak <tcunis@ifr.uni-stuttgart.de>
 % SPDX-FileContributor: For a full list of contributors, see <https://github.com/ifr-ofc/casos>
 %
@@ -7,7 +7,8 @@
 %% ------------------------------------------------------------------------
 %
 %
-%   Short Description:  Demo for sequential SOS using a line search filter. 
+%   Short Description:  Demo for region-of-attraction estimation using 
+%                       sequential quadratic SOS with a filter line-search. 
 %                       Calculate an inner-estimate of the
 %                       region-of-attraction for the closed-loop
 %                       Van-der-Pol Oscilator.
@@ -24,67 +25,56 @@ x = casos.Indeterminates('x',2,1);
 f = [-x(2); x(1) + (x(1)^2 - 1)*x(2)];
 
 % initial Lyapunov function
-% Vinit = 1.5*x(1)^2 - x(1)*x(2) + x(2)^2;
+Vinit = 1.5*x(1)^2 - x(1)*x(2) + x(2)^2;
 
-Vinit = x'*x;
 % Lyapunov function candidate
-V = casos.PS.sym('v',monomials(x,2));
+V = casos.PS.sym('v',monomials(x,2:6));
 
 % SOS multiplier
-s2 = casos.PS.sym('s2',monomials(x,0:2));
-s1 = casos.PS.sym('s1',monomials(x,2));
+s = casos.PS.sym('s',monomials(x,1:3),'gram');
+
 % enforce positivity
 l = 1e-6*(x'*x);
-
-% level of stability
-b = casos.PS.sym('b');
-
-% quadratic shape function
-p = x'*x;
+% quadratic reference function
+p = x'*x/9;
 
 %% Setup solver
 % options
-opts = struct('sossol','mosek');
-opts.verbose = 1;
+opts = struct; %('sossol','mosek');
 
-opts.hessian_approx = 'regularization_frobenius';
-opts.con_vio_check  = 'signed-distance';
+% nonlinear SOS problem
+sos = struct('x',[V;s],'p',[]);
 
-
-sos = struct('x',[V;s2;s1;b],'f',b,'p',[]);
+% objective
+sos.f = int((V-p)^2,x,[-1.5 1.5]);
 
 % constraints
-sos.('g') = [
-             s2;
-             s1;
-             V-l; 
-             b - 1e-6;
-             s2*(V-1)-nabla(V,x)*f-l;
-             s1*(p+b) + 1 - V
+sos.g = [
+            s;
+            V-l; 
+            s*(V-1)-nabla(V,x)*f-l;
 ];
 
 % states + constraint are linear/SOS cones
-opts.Kx = struct('lin', 4);
-opts.Kc = struct('sos', 6);
+opts.Kx = struct('lin', 2);
+opts.Kc = struct('sos', 3);
 
 % build sequential solver
 S = casos.nlsossol('S','sequential',sos,opts);
 
 
 %% Solve nonlinear problem
-sol = S('x0',[Vinit; (x'*x); x'*x; 0.1]); 
+sol = S('x0',[Vinit; (x'*x)]); 
 
 %% Plot results
 % Lyapunov function
 Vfun = to_function(sol.x(1));
-% shape function
+% reference function
 pfun = to_function(p);
-% stable level set
-bsol = full(sol.x(end));
 
 figure
-fcontour(@(x,y) full(Vfun(x,y)), [-2 2], 'b', "LevelList", [1 1])
+fcontour(@(x,y) full(Vfun(x,y)), [-3 3], 'b', "LevelList", [1 1])
 hold on
-fcontour(@(x,y) full(pfun(x,y)), [-2 2], 'r--', "LevelList", [bsol bsol])
+fcontour(@(x,y) full(pfun(x,y)), [-3 3], 'r--', "LevelList", [1 1])
 hold off
 grid on
